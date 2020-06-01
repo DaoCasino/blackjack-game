@@ -1,0 +1,3 @@
+[submodule "3rdparty/sdk"]
+	path = 3rdparty/sdk
+	url = https://github.com/DaoCasino/game-contract-sdk
