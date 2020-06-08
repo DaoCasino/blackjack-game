@@ -123,6 +123,33 @@ enum class color {
     SPADE
 };
 
+static int get_weight(const card& c) {
+    if (c.get_rank() == rank::ACE) {
+        return 1;
+    } else if (c.get_rank() < rank::TEN) {
+        return static_cast<int>(c.get_rank()) + 2;
+    }
+    return 10;
+}
+
+using cards_t = std::vector<card>;
+
+static int get_weight(const cards_t& cards) {
+    int aces = 0, w = 0;
+    for (const card& c : cards) {
+        if (c.get_rank() == rank::ACE) {
+            aces++;
+        }
+        w += get_weight(c);
+    }
+    // maximum possible weight less that 21
+    while (aces && w + 10 <= 21) {
+        w += 10;
+        --aces;
+    }
+    return w;
+}
+
 } // ns card_game
 
 #ifdef TEST
