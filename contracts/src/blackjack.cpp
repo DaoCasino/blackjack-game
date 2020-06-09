@@ -68,7 +68,7 @@ std::tuple<blackjack::outcome, card> blackjack::handle_deal_one_card(state_table
     return std::make_tuple(outcome::carry_on, new_card);
 }
 
-std::tuple<blackjack::outcome, cards_t> blackjack::handle_finish_game(state_table::const_iterator state_itr, checksum256&& rand) {
+std::tuple<blackjack::outcome, cards_t> blackjack::handle_stand(state_table::const_iterator state_itr, checksum256&& rand) {
     auto deck = prepare_deck(state_itr, std::move(rand));
     cards_t dealer_cards{state_itr->dealer_card};
 
@@ -89,6 +89,29 @@ std::tuple<blackjack::outcome, cards_t> blackjack::handle_finish_game(state_tabl
         return std::make_tuple(outcome::draw, dealer_cards);
     }
     return std::make_tuple(outcome::player, dealer_cards);
+}
+
+std::tuple<asset, std::vector<param_t>> blackjack::on_stand(state_table::const_iterator state_itr, bet_table::const_iterator bet_itr, checksum256&& rand) {
+    auto [res, dealer_cards] = handle_stand(state_itr, std::move(rand));
+    auto player_win = zero_asset;
+    const auto ante = bet_itr->ante;
+
+    if (res == outcome::player) {
+        player_win = ante;
+    } else if (res == outcome::dealer) {
+        if (dealer_cards.size() == 2 && card_game::get_weight(dealer_cards) == 21) {
+            // dealer has a blackjack
+            player_win = -3 * ante / 2;
+        } else {
+            player_win = -ante;
+        }
+    }
+
+    // the first card isn't new. it's been dealt at the begining
+    dealer_cards.erase(dealer_cards.begin());
+    std::vector<param_t> cards;
+    for (const auto& c : dealer_cards) { cards.push_back(c.get_value()); }
+    return std::make_tuple(get_session(state_itr->ses_id).deposit + player_win, std::move(cards));
 }
 
 void blackjack::on_new_game(uint64_t ses_id) {
@@ -121,19 +144,30 @@ void blackjack::on_action(uint64_t ses_id, uint16_t type, std::vector<game_sdk::
         switch (params[0]) {
             case decision::hit:
                 update_state(state_itr, game_state::deal_one_card);
+                state.modify(state_itr, get_self(), [&](auto& row) {
+                    row.has_hit = true;
+                });
                 break;
             case decision::stand:
-                update_state(state_itr, game_state::finish);
-                break;
-            case decision::insure:
-                // TODO
+                update_state(state_itr, game_state::stand);
                 break;
             case decision::split:
                 // TODO
                 break;
-            case decision::double_down:
-                // TODO
+            case decision::double_down: {
+                check(!state_itr->has_hit, "player already hit");
+                check(!state_itr->player_cards.empty(), "cards have not been dealt yet");
+
+                const auto& cards = state_itr->player_cards;
+                // https://wizardofodds.com/games/blackjack/strategy/european/
+                const auto w = card_game::get_weight(cards);
+                const auto hard = std::find_if(cards.begin(), cards.end(), [&](const auto& card) {
+                    return card.get_rank() == card_game::rank::ACE;
+                }) == cards.end();
+                check(9 <= w && w <= 11 && hard, " player may only double on hard totals of 9-11");
+                update_state(state_itr, game_state::double_down);
                 break;
+            }
             default:
                 check(0, "invalid decision");
         }
@@ -146,6 +180,8 @@ void blackjack::on_action(uint64_t ses_id, uint16_t type, std::vector<game_sdk::
 
 void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
     const auto state_itr = state.require_find(ses_id, "invalid ses_id");
+    const auto bet_itr = bet.require_find(ses_id, "invalid ses_id");
+
     switch (state_itr->state) {
         case game_state::deal_cards: {
             const auto [res, player_cards, dealer_cards] = handle_deal_cards(state_itr, std::move(rand));
@@ -180,27 +216,21 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
             }
             break;
         }
-        case game_state::finish: {
-            auto [res, dealer_cards] = handle_finish_game(state_itr, std::move(rand));
-            auto player_win = zero_asset;
-            const auto ante = bet.get(ses_id).ante;
-
-            if (res == outcome::player) {
-                player_win = ante;
-            } else if (res == outcome::dealer) {
-                if (dealer_cards.size() == 2 && card_game::get_weight(dealer_cards) == 21) {
-                    // dealer has a blackjack
-                    player_win = -3 * ante / 2;
-                } else {
-                    player_win = -ante;
-                }
+        case game_state::double_down: {
+            const auto [res, player_card] = handle_deal_one_card(state_itr, std::move(rand));
+            if (res == outcome::dealer) {
+                // player busts
+                finish_game(get_session(ses_id).deposit - 2 * bet.get(ses_id).ante, std::vector<param_t>{player_card.get_value()});
+            } else {
+                // A player who doubles down receives exactly one more card face up and is then forced to stand regardless of the total
+                const auto [payout, dealer_cards] = on_stand(state_itr, bet_itr, std::move(rand));
+                finish_game(payout - bet.get(ses_id).ante, std::vector<param_t>{player_card.get_value()});
             }
-
-            // first card isn't new. it's been dealt at the begining
-            dealer_cards.erase(dealer_cards.begin());
-            std::vector<param_t> cards;
-            for (const auto& c : dealer_cards) { cards.push_back(c.get_value()); }
-            finish_game(get_session(ses_id).deposit + player_win, std::move(cards));
+            break;
+        }
+        case game_state::stand: {
+            const auto [payout, dealer_cards] = on_stand(state_itr, bet_itr, std::move(rand));
+            finish_game(payout, std::move(dealer_cards));
             break;
         }
         default:

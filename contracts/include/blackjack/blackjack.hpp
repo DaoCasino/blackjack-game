@@ -28,9 +28,8 @@ namespace action {
 namespace decision {
     const uint16_t hit = 0;
     const uint16_t stand = 1;
-    const uint16_t insure = 2;
-    const uint16_t split = 3;
-    const uint16_t double_down = 4;
+    const uint16_t split = 2;
+    const uint16_t double_down = 3;
 }
 
 class [[eosio::contract]] blackjack: public game_sdk::game {
@@ -49,7 +48,8 @@ public:
         require_bet,
         require_play,
         deal_one_card,
-        finish,
+        stand,
+        double_down,
         deal_cards,
     };
 
@@ -60,9 +60,11 @@ public:
         std::vector<card> player_cards;
         card dealer_card;
 
+        bool has_hit = false;
+
         uint64_t primary_key() const { return ses_id; }
 
-        EOSLIB_SERIALIZE(state_row, (ses_id)(state)(player_cards)(dealer_card))
+        EOSLIB_SERIALIZE(state_row, (ses_id)(state)(player_cards)(dealer_card)(has_hit))
     };
 
     using bet_table = eosio::multi_index<"bet"_n, bet_row>;
@@ -99,7 +101,9 @@ public:
     // handlers
     std::tuple<outcome, cards_t, cards_t> handle_deal_cards(state_table::const_iterator itr, checksum256&& rand);
     std::tuple<outcome, card> handle_deal_one_card(state_table::const_iterator itr, checksum256&& rand);
-    std::tuple<outcome, cards_t> handle_finish_game(state_table::const_iterator itr, checksum256&& rand);
+    std::tuple<outcome, cards_t> handle_stand(state_table::const_iterator itr, checksum256&& rand);
+
+    std::tuple<asset, std::vector<param_t>> on_stand(state_table::const_iterator state_itr, bet_table::const_iterator bet_itr, checksum256&& rand);
 
     card_game::labels_t prepare_deck(state_table::const_iterator state_itr, checksum256&& rand) {
     #ifdef IS_DEBUG

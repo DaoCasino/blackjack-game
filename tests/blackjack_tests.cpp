@@ -53,10 +53,6 @@ public:
                             : abi_ser[game_name].binary_to_variant("bet_row", data, abi_serializer_max_time);
     }
 
-    // void get_dealer_card() {
-
-    // }
-
     void push_cards(uint64_t ses_id, const card_game::labels_t& labels) {
         BOOST_REQUIRE_EQUAL(
             push_action(
