@@ -209,6 +209,10 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
 }
 
 void blackjack::on_finish(uint64_t ses_id) {
+    const auto state_itr = state.require_find(ses_id, "no ses_id in state");
+    state.erase(state_itr);
+    const auto bet_itr = bet.require_find(ses_id, "no ses_id in bet");
+    bet.erase(bet_itr);
 }
 
 } // namespace blackjack
