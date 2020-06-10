@@ -50,6 +50,7 @@ public:
         deal_one_card,
         stand,
         double_down,
+        split,
         deal_cards,
     };
 
@@ -60,11 +61,21 @@ public:
         std::vector<card> player_cards;
         card dealer_card;
 
-        bool has_hit = false;
+        // need this to handle split action
+        std::vector<card> split_cards;
+        bool busted = false;
+        bool second_round = false;
 
+        // methods
+        bool has_hit() const {
+            return player_cards.size() > 2;
+        }
+        bool has_split() const {
+            return !split_cards.empty();
+        }
         uint64_t primary_key() const { return ses_id; }
 
-        EOSLIB_SERIALIZE(state_row, (ses_id)(state)(player_cards)(dealer_card)(has_hit))
+        EOSLIB_SERIALIZE(state_row, (ses_id)(state)(player_cards)(dealer_card)(split_cards)(busted)(second_round))
     };
 
     using bet_table = eosio::multi_index<"bet"_n, bet_row>;
@@ -134,6 +145,15 @@ public:
         return labels;
     }
 
+    void finish_first_round(state_table::const_iterator state_itr, bool busted) {
+        state.modify(state_itr, get_self(), [&](auto& row) {
+            row.busted = busted;
+            row.second_round = true;
+            // now the split cards become active
+            std::swap(row.player_cards, row.split_cards);
+            row.split_cards.clear();
+        });
+    }
 #ifdef IS_DEBUG
     struct [[eosio::table("labelsdeb")]] labels_deb {
         card_game::labels_t labels;
