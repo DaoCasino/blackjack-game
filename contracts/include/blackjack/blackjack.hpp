@@ -103,26 +103,33 @@ public:
     std::tuple<outcome, card> handle_deal_one_card(state_table::const_iterator itr, checksum256&& rand);
     std::tuple<outcome, cards_t> handle_stand(state_table::const_iterator itr, checksum256&& rand);
 
-    std::tuple<asset, std::vector<param_t>> on_stand(state_table::const_iterator state_itr, bet_table::const_iterator bet_itr, checksum256&& rand);
+    std::tuple<asset, std::vector<param_t>> on_stand(state_table::const_iterator state_itr, asset ante, checksum256&& rand);
+
+    void clean_labels(card_game::labels_t& labels, state_table::const_iterator state_itr) {
+        for (const auto& c : state_itr->player_cards) {
+            const auto it = std::find(labels.begin(), labels.end(), c.to_string());
+            if (it != labels.end()) {
+                labels.erase(it);
+            }
+        }
+        if (state_itr->dealer_card) {
+            const auto it = std::find(labels.begin(), labels.end(), state_itr->dealer_card.to_string());
+            if (it != labels.end()) {
+                labels.erase(it);
+            }
+        }
+    }
 
     card_game::labels_t prepare_deck(state_table::const_iterator state_itr, checksum256&& rand) {
     #ifdef IS_DEBUG
         auto debug_labels = debug_labels_singleton(_self, _self.value).get_or_default().labels;
+        clean_labels(debug_labels, state_itr);
         if (!debug_labels.empty()) {
             return debug_labels;
         }
     #endif
         auto labels = card_game::get_labels();
-        for (const auto& c : state_itr->player_cards) {
-            const auto it = std::find(labels.begin(), labels.end(), c.to_string());
-            check(it != labels.end(), "invalid player card while preparing a deck");
-            labels.erase(it);
-        }
-        if (state_itr->dealer_card) {
-            const auto it = std::find(labels.begin(), labels.end(), state_itr->dealer_card.to_string());
-            check(it != labels.end(), "invalid dealer card while preparing a deck");
-            labels.erase(it);
-        }
+        clean_labels(labels, state_itr);
         service::shuffle(labels.begin(), labels.end(), get_prng(std::move(rand)));
         return labels;
     }

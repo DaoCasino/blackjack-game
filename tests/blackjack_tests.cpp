@@ -47,6 +47,14 @@ public:
         game_action(game_name, ses_id, 1, {1});
     }
 
+    void split(uint64_t ses_id) {
+        game_action(game_name, ses_id, 1, {2});
+    }
+
+    void double_down(uint64_t ses_id) {
+        game_action(game_name, ses_id, 1, {3});
+    }
+
     fc::variant get_bet(name game_name, uint64_t ses_id) {
         vector<char> data = get_row_by_account(game_name, game_name, N(bet), ses_id);
         return data.empty() ? fc::variant()
@@ -273,6 +281,36 @@ BOOST_FIXTURE_TEST_CASE(player_hits_two_times_and_wins, blackjack_tester) try {
     signidice(game_name, ses_id);
 
     check_player_win(STRSYM("100.0000"));
+} FC_LOG_AND_RETHROW()
+
+BOOST_FIXTURE_TEST_CASE(player_doubles_and_wins, blackjack_tester) try {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("200.0000"));
+    bet(ses_id, STRSYM("100.0000"));
+
+    // intial sum = 11
+    push_cards(ses_id, {"6d", "5s", "Td"});
+    signidice(game_name, ses_id);
+
+    double_down(ses_id);
+    push_cards(ses_id, {"8s", "7d"});
+    signidice(game_name, ses_id);
+
+    check_player_win(STRSYM("200.0000"));
+} FC_LOG_AND_RETHROW()
+
+BOOST_FIXTURE_TEST_CASE(player_doubles_and_loses, blackjack_tester) try {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("200.0000"));
+    bet(ses_id, STRSYM("100.0000"));
+
+    // intial sum = 11
+    push_cards(ses_id, {"6d", "5s", "Td"});
+    signidice(game_name, ses_id);
+
+    double_down(ses_id);
+    push_cards(ses_id, {"8s", "Kh"});
+    signidice(game_name, ses_id);
+
+    check_player_win(-STRSYM("200.0000"));
 } FC_LOG_AND_RETHROW()
 
 #endif

@@ -37,7 +37,7 @@ enum class color;
 
 // cards are compared by rank
 struct card {
-    card() = default;
+    card(): value(100) {}
     explicit card(int v): value(v) {}
     explicit card(const std::string& card) {
         static const auto& labels = get_labels();

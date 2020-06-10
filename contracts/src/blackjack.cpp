@@ -91,10 +91,9 @@ std::tuple<blackjack::outcome, cards_t> blackjack::handle_stand(state_table::con
     return std::make_tuple(outcome::player, dealer_cards);
 }
 
-std::tuple<asset, std::vector<param_t>> blackjack::on_stand(state_table::const_iterator state_itr, bet_table::const_iterator bet_itr, checksum256&& rand) {
+std::tuple<asset, std::vector<param_t>> blackjack::on_stand(state_table::const_iterator state_itr, asset ante, checksum256&& rand) {
     auto [res, dealer_cards] = handle_stand(state_itr, std::move(rand));
     auto player_win = zero_asset;
-    const auto ante = bet_itr->ante;
 
     if (res == outcome::player) {
         player_win = ante;
@@ -218,18 +217,14 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
         }
         case game_state::double_down: {
             const auto [res, player_card] = handle_deal_one_card(state_itr, std::move(rand));
-            if (res == outcome::dealer) {
-                // player busts
-                finish_game(get_session(ses_id).deposit - 2 * bet.get(ses_id).ante, std::vector<param_t>{player_card.get_value()});
-            } else {
-                // A player who doubles down receives exactly one more card face up and is then forced to stand regardless of the total
-                const auto [payout, dealer_cards] = on_stand(state_itr, bet_itr, std::move(rand));
-                finish_game(payout - bet.get(ses_id).ante, std::vector<param_t>{player_card.get_value()});
-            }
+            check(res == outcome::carry_on, "invariant check failed, player cannot bust when doubling");
+            // A player who doubles down receives exactly one more card face up and is then forced to stand regardless of the total
+            const auto [payout, dealer_cards] = on_stand(state_itr, bet_itr->ante * 2, std::move(rand));
+            finish_game(payout, std::vector<param_t>{player_card.get_value()});
             break;
         }
         case game_state::stand: {
-            const auto [payout, dealer_cards] = on_stand(state_itr, bet_itr, std::move(rand));
+            const auto [payout, dealer_cards] = on_stand(state_itr, bet_itr->ante, std::move(rand));
             finish_game(payout, std::move(dealer_cards));
             break;
         }
