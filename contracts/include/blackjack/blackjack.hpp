@@ -63,7 +63,7 @@ public:
 
         // need this to handle split action
         std::vector<card> split_cards;
-        bool busted = false;
+        asset first_round_ante;
         bool second_round = false;
 
         // methods
@@ -75,7 +75,7 @@ public:
         }
         uint64_t primary_key() const { return ses_id; }
 
-        EOSLIB_SERIALIZE(state_row, (ses_id)(state)(player_cards)(dealer_card)(split_cards)(busted)(second_round))
+        EOSLIB_SERIALIZE(state_row, (ses_id)(state)(player_cards)(dealer_card)(split_cards)(first_round_ante)(second_round))
     };
 
     using bet_table = eosio::multi_index<"bet"_n, bet_row>;
@@ -109,12 +109,14 @@ public:
     };
 
 
-    // handlers
     std::tuple<outcome, cards_t, cards_t> handle_deal_cards(state_table::const_iterator itr, checksum256&& rand);
     std::tuple<outcome, card> handle_deal_one_card(state_table::const_iterator itr, checksum256&& rand);
     std::tuple<outcome, cards_t> handle_stand(state_table::const_iterator itr, checksum256&& rand);
 
-    std::tuple<asset, std::vector<param_t>> on_stand(state_table::const_iterator state_itr, asset ante, checksum256&& rand);
+    std::tuple<asset, std::vector<param_t>> compare_and_finish(state_table::const_iterator state_itr, asset ante, checksum256&& rand);
+    cards_t open_dealer_cards(state_table::const_iterator state_itr, checksum256&& rand);
+    asset get_win(asset ante, outcome result, bool has_blackjack);
+    std::tuple<outcome, bool> compare_cards(const cards_t& player_cards, const cards_t& dealer_cards);
 
     void clean_labels(card_game::labels_t& labels, state_table::const_iterator state_itr) {
         for (const auto& c : state_itr->player_cards) {
@@ -145,15 +147,15 @@ public:
         return labels;
     }
 
-    void finish_first_round(state_table::const_iterator state_itr, bool busted) {
+    void finish_first_round(state_table::const_iterator state_itr, asset first_round_ante) {
         state.modify(state_itr, get_self(), [&](auto& row) {
-            row.busted = busted;
+            row.first_round_ante = first_round_ante;
             row.second_round = true;
             // now the split cards become active
             std::swap(row.player_cards, row.split_cards);
-            row.split_cards.clear();
         });
     }
+
 #ifdef IS_DEBUG
     struct [[eosio::table("labelsdeb")]] labels_deb {
         card_game::labels_t labels;

@@ -150,6 +150,23 @@ static int get_weight(const cards_t& cards) {
     return w;
 }
 
+static std::ostream& operator<<(std::ostream& os, const card& c) {
+    os << c.to_string();
+    return os;
+}
+
+static std::ostream& operator<<(std::ostream& os, const cards_t& cards) {
+    os << "{";
+    for (int i = 0; i < static_cast<int>(cards.size()) - 1; i++) {
+        os << cards[i] << ", ";
+    }
+    if (!cards.empty()) {
+        os << cards.back();
+    }
+    os << "}";
+    return os;
+}
+
 } // ns card_game
 
 #ifdef TEST
