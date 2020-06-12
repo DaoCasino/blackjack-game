@@ -49,11 +49,19 @@ public:
     }
 
     void split(uint64_t ses_id) {
-        game_action(game_name, ses_id, 1, {2});
+        game_action(game_name, ses_id, 1, {2}, asset(get_ante(ses_id).get_amount() * 3 / 2));
     }
 
     void double_down(uint64_t ses_id) {
-        game_action(game_name, ses_id, 1, {3});
+        game_action(game_name, ses_id, 1, {3}, asset(get_ante(ses_id).get_amount() * 3 / 2));
+    }
+
+    asset get_deposit(uint64_t ses_id) {
+        return get_game_session(game_name, ses_id)["deposit"].as<asset>();
+    }
+
+    asset get_ante(uint64_t ses_id) {
+        return get_bet(ses_id)["ante"].as<asset>();
     }
 
     fc::variant get_bet(uint64_t ses_id) {
@@ -108,6 +116,7 @@ BOOST_FIXTURE_TEST_CASE(new_game_test_min_deposit_fail, blackjack_tester) try {
     );
 } FC_LOG_AND_RETHROW()
 
+
 BOOST_FIXTURE_TEST_CASE(new_game_test_min_deposit_ok, blackjack_tester) try {
     const auto ses_id = 0u;
     transfer(player_name, game_name, STRSYM("1.0000"), std::to_string(ses_id));
@@ -151,7 +160,7 @@ BOOST_FIXTURE_TEST_CASE(new_game_test_max_deposit_ok, blackjack_tester) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(bet_action, blackjack_tester) try {
-    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("200.0000"));
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
     BOOST_REQUIRE_EQUAL(
         push_action(
             game_name,
@@ -164,7 +173,7 @@ BOOST_FIXTURE_TEST_CASE(bet_action, blackjack_tester) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(invalid_action, blackjack_tester) try {
-    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("200.0000"));
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
     BOOST_REQUIRE_EQUAL(
         push_action(
             game_name,
@@ -179,7 +188,7 @@ BOOST_FIXTURE_TEST_CASE(invalid_action, blackjack_tester) try {
 #ifdef IS_DEBUG
 
 BOOST_FIXTURE_TEST_CASE(invalid_decision, blackjack_tester) try {
-    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("200.0000"));
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
     bet(ses_id, STRSYM("100.0000"));
     push_cards(ses_id, {"3d", "Ts", "2c", "7c"});
     signidice(game_name, ses_id);
@@ -195,7 +204,7 @@ BOOST_FIXTURE_TEST_CASE(invalid_decision, blackjack_tester) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(player_has_a_blackjack, blackjack_tester) try {
-    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("200.0000"));
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
     bet(ses_id, STRSYM("100.0000"));
 
     push_cards(ses_id, {"Ad", "Ts", "2c", "7c"});
@@ -205,7 +214,7 @@ BOOST_FIXTURE_TEST_CASE(player_has_a_blackjack, blackjack_tester) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(player_dealer_both_have_a_blackjack, blackjack_tester) try {
-    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("200.0000"));
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
     bet(ses_id, STRSYM("100.0000"));
 
     push_cards(ses_id, {"Ad", "Ts", "Td", "As"});
@@ -215,7 +224,7 @@ BOOST_FIXTURE_TEST_CASE(player_dealer_both_have_a_blackjack, blackjack_tester) t
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(dealer_has_a_blackjack, blackjack_tester) try {
-    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("200.0000"));
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
     bet(ses_id, STRSYM("100.0000"));
 
     // Tc is a hole card
@@ -230,7 +239,7 @@ BOOST_FIXTURE_TEST_CASE(dealer_has_a_blackjack, blackjack_tester) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(player_hits_and_busts, blackjack_tester) try {
-    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("200.0000"));
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
     bet(ses_id, STRSYM("100.0000"));
 
     push_cards(ses_id, {"Kd", "Ts", "Td"});
@@ -244,7 +253,7 @@ BOOST_FIXTURE_TEST_CASE(player_hits_and_busts, blackjack_tester) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(player_hits_and_wins, blackjack_tester) try {
-    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("200.0000"));
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
     bet(ses_id, STRSYM("100.0000"));
 
     push_cards(ses_id, {"Kd", "Ts", "Td"});
@@ -265,7 +274,7 @@ BOOST_FIXTURE_TEST_CASE(player_hits_and_wins, blackjack_tester) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(player_hits_two_times_and_wins, blackjack_tester) try {
-    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("200.0000"));
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
     bet(ses_id, STRSYM("100.0000"));
 
     // intial sum = 15
@@ -291,7 +300,7 @@ BOOST_FIXTURE_TEST_CASE(player_hits_two_times_and_wins, blackjack_tester) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(player_doubles_and_wins, blackjack_tester) try {
-    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("200.0000"));
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
     bet(ses_id, STRSYM("100.0000"));
 
     // intial sum = 11
@@ -306,7 +315,7 @@ BOOST_FIXTURE_TEST_CASE(player_doubles_and_wins, blackjack_tester) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(player_doubles_and_loses, blackjack_tester) try {
-    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("200.0000"));
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
     bet(ses_id, STRSYM("100.0000"));
 
     // intial sum = 11
@@ -321,7 +330,7 @@ BOOST_FIXTURE_TEST_CASE(player_doubles_and_loses, blackjack_tester) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(check_state_after_split, blackjack_tester) try {
-    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("200.0000"));
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
     bet(ses_id, STRSYM("100.0000"));
 
     push_cards(ses_id, {"6d", "6s", "Td"});
@@ -338,7 +347,7 @@ BOOST_FIXTURE_TEST_CASE(check_state_after_split, blackjack_tester) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(player_split_win_win, blackjack_tester) try {
-    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("200.0000"));
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
     bet(ses_id, STRSYM("100.0000"));
 
     push_cards(ses_id, {"6d", "6s", "Td"});
@@ -368,7 +377,7 @@ BOOST_FIXTURE_TEST_CASE(player_split_win_win, blackjack_tester) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(player_split_win_lose, blackjack_tester) try {
-    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("200.0000"));
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
     bet(ses_id, STRSYM("100.0000"));
 
     push_cards(ses_id, {"6d", "6s", "Td"});
@@ -398,7 +407,7 @@ BOOST_FIXTURE_TEST_CASE(player_split_win_lose, blackjack_tester) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(player_split_doubles_lose_win, blackjack_tester) try {
-    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("200.0000"));
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
     bet(ses_id, STRSYM("100.0000"));
 
     push_cards(ses_id, {"6d", "6s", "Td"});
@@ -418,12 +427,81 @@ BOOST_FIXTURE_TEST_CASE(player_split_doubles_lose_win, blackjack_tester) try {
     push_cards(ses_id, {"4c"});
     signidice(game_name, ses_id);
 
-    // open dealer's cards, Td 2c 6h, total = 19
+    // open dealer's cards, Td 9h, total = 19
     stand(ses_id);
     push_cards(ses_id, {"9h"});
     signidice(game_name, ses_id);
 
     check_player_win(-STRSYM("100.0000"));
+} FC_LOG_AND_RETHROW()
+
+BOOST_FIXTURE_TEST_CASE(player_split_doubles_down_both, blackjack_tester) try {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
+    bet(ses_id, STRSYM("100.0000"));
+
+    push_cards(ses_id, {"6d", "6s", "Td"});
+    signidice(game_name, ses_id);
+
+    split(ses_id);
+    push_cards(ses_id, {"5s", "4d"});
+    signidice(game_name, ses_id);
+
+    // player hits with 6d 5s and gets 4h, total = 15
+    double_down(ses_id);
+    push_cards(ses_id, {"4h"});
+    signidice(game_name, ses_id);
+
+    // now open player and dealer open cards
+    // player with 6s 4d gets 7s, total = 17
+    // dealer with Td gets 9h, total = 19
+    double_down(ses_id);
+    push_cards(ses_id, {"7s", "9h"});
+    signidice(game_name, ses_id);
+    check_player_win(-STRSYM("400.0000"));
+} FC_LOG_AND_RETHROW()
+
+BOOST_FIXTURE_TEST_CASE(player_split_max_loss_case, blackjack_tester) try {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
+    bet(ses_id, STRSYM("100.0000"));
+
+    push_cards(ses_id, {"6d", "6s", "Td"});
+    signidice(game_name, ses_id);
+
+    split(ses_id);
+    push_cards(ses_id, {"5s", "4d"});
+    signidice(game_name, ses_id);
+
+    // player hits with 6d 5s and gets 4h, total = 15
+    double_down(ses_id);
+    push_cards(ses_id, {"4h"});
+    signidice(game_name, ses_id);
+
+    // now open player and dealer open cards
+    // player with 6s 4d gets 7s, total = 17
+    // dealer with Td gets Ah, total = blackjack
+    double_down(ses_id);
+    push_cards(ses_id, {"7s", "Ah"});
+    signidice(game_name, ses_id);
+    check_player_win(-STRSYM("600.0000"));
+} FC_LOG_AND_RETHROW()
+
+BOOST_FIXTURE_TEST_CASE(player_split_double_blackjack, blackjack_tester) try {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
+    bet(ses_id, STRSYM("100.0000"));
+
+    push_cards(ses_id, {"Jd", "Js", "Td"});
+    signidice(game_name, ses_id);
+
+    split(ses_id);
+    push_cards(ses_id, {"As", "Ad"});
+    signidice(game_name, ses_id);
+
+    stand(ses_id);
+
+    stand(ses_id);
+    push_cards(ses_id, {"7s"});
+    signidice(game_name, ses_id);
+    check_player_win(STRSYM("300.0000"));
 } FC_LOG_AND_RETHROW()
 
 #endif

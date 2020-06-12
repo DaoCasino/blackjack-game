@@ -147,14 +147,16 @@ public:
         return labels;
     }
 
-    void finish_first_round(state_table::const_iterator state_itr, asset first_round_ante) {
+    void finish_first_round(state_table::const_iterator state_itr) {
+        eosio::print("first round's finished\n");
         state.modify(state_itr, get_self(), [&](auto& row) {
-            row.first_round_ante = first_round_ante;
             row.second_round = true;
             // now the split cards become active
             std::swap(row.player_cards, row.split_cards);
         });
     }
+
+    void check_deposit(asset deposit, asset current_ante, asset prev_round_ante);
 
 #ifdef IS_DEBUG
     struct [[eosio::table("labelsdeb")]] labels_deb {
