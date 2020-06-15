@@ -229,6 +229,7 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
 
     switch (state_itr->state) {
         case game_state::deal_cards: {
+            eosio::print("dealing cards");
             const auto [res, player_cards, dealer_cards] = deal_initial_cards(state_itr, std::move(rand));
             std::vector<param_t> cards;
             for (const auto& c : player_cards) { cards.push_back(c.get_value()); }
@@ -315,10 +316,8 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
 }
 
 void blackjack::on_finish(uint64_t ses_id) {
-    const auto state_itr = state.require_find(ses_id, "no ses_id in state");
-    state.erase(state_itr);
-    const auto bet_itr = bet.require_find(ses_id, "no ses_id in bet");
-    bet.erase(bet_itr);
+    state.erase(state.require_find(ses_id, "no ses_id in state"));
+    bet.erase(bet.require_find(ses_id, "no ses_id in bet"));
 }
 
 } // namespace blackjack

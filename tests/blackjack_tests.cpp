@@ -576,16 +576,16 @@ BOOST_FIXTURE_TEST_CASE(split_game_message, blackjack_tester) {
     const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
     bet(ses_id, STRSYM("100.0000"));
 
-    cards_t initial_cards{"8c", "3s", "Td"};
+    cards_t initial_cards{"3c", "3s", "Td"};
     push_cards(ses_id, initial_cards);
     signidice(game_name, ses_id);
 
-    double_down(ses_id);
-    push_cards(ses_id, {"As", "Kh"});
+    cards_t mock_cards{"As", "Kh"};
+    split(ses_id);
+    push_cards(ses_id, mock_cards);
     signidice(game_name, ses_id);
 
-    BOOST_REQUIRE_EQUAL(get_cards(events_id::game_message), cards_t{"As"});
-    BOOST_REQUIRE_EQUAL(get_cards(events_id::game_finished), cards_t{"Kh"});
+    BOOST_REQUIRE_EQUAL(get_cards(events_id::game_message), mock_cards);
 }
 
 #endif
