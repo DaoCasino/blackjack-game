@@ -123,6 +123,12 @@ public:
                 labels.erase(it);
             }
         }
+        for (const auto& c : state_itr->split_cards) {
+            const auto it = std::find(labels.begin(), labels.end(), c.to_string());
+            if (it != labels.end()) {
+                labels.erase(it);
+            }
+        }
         if (state_itr->dealer_card) {
             const auto it = std::find(labels.begin(), labels.end(), state_itr->dealer_card.to_string());
             if (it != labels.end()) {
@@ -140,9 +146,17 @@ public:
         }
     #endif
         auto labels = card_game::get_labels();
-        clean_labels(labels, state_itr);
-        service::shuffle(labels.begin(), labels.end(), get_prng(std::move(rand)));
-        return labels;
+        // 8 deck blackjack
+        card_game::labels_t multideck;
+        multideck.reserve(8 * labels.size());
+        for (const auto& label : labels) {
+            for (int i = 0; i < 8; i++) {
+                multideck.push_back(label);
+            }
+        }
+        clean_labels(multideck, state_itr);
+        service::shuffle(multideck.begin(), multideck.end(), get_prng(std::move(rand)));
+        return multideck;
     }
 
     void finish_first_round(state_table::const_iterator state_itr) {
