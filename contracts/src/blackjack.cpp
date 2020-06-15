@@ -28,7 +28,7 @@ void blackjack::check_bet(uint64_t ses_id, const param_t& ante) const {
     check(3 * ante / 2 == get_session(ses_id).deposit.amount, "max loss is more than deposit");
 }
 
-std::tuple<blackjack::outcome, cards_t, cards_t> blackjack::handle_deal_cards(state_table::const_iterator state_itr, checksum256&& rand) {
+std::tuple<blackjack::outcome, cards_t, cards_t> blackjack::deal_initial_cards(state_table::const_iterator state_itr, checksum256&& rand) {
     auto deck = prepare_deck(state_itr, std::move(rand));
     const cards_t player_cards{card(deck[0]), card(deck[1])};
     const auto open_card = card(deck[2]);
@@ -51,7 +51,7 @@ std::tuple<blackjack::outcome, cards_t, cards_t> blackjack::handle_deal_cards(st
     return std::make_tuple(outcome::carry_on, player_cards, cards_t{open_card});
 }
 
-std::tuple<blackjack::outcome, card> blackjack::handle_deal_one_card(state_table::const_iterator state_itr, checksum256&& rand) {
+std::tuple<blackjack::outcome, card> blackjack::deal_a_card(state_table::const_iterator state_itr, checksum256&& rand) {
     const auto deck = prepare_deck(state_itr, std::move(rand));
     const auto new_card = card(deck[0]);
     auto player_cards = state_itr->player_cards;
@@ -225,11 +225,11 @@ void blackjack::on_action(uint64_t ses_id, uint16_t type, std::vector<game_sdk::
 
 void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
     const auto state_itr = state.require_find(ses_id, "invalid ses_id");
-    const auto bet_itr = bet.require_find(ses_id, "invalid ses_id");
+    const auto ante = bet.require_find(ses_id, "invalid ses_id")->ante;
 
     switch (state_itr->state) {
         case game_state::deal_cards: {
-            const auto [res, player_cards, dealer_cards] = handle_deal_cards(state_itr, std::move(rand));
+            const auto [res, player_cards, dealer_cards] = deal_initial_cards(state_itr, std::move(rand));
             std::vector<param_t> cards;
             for (const auto& c : player_cards) { cards.push_back(c.get_value()); }
             for (const auto& c : dealer_cards) { cards.push_back(c.get_value()); }
@@ -242,7 +242,7 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
             } else if (res == outcome::player) {
                 // player has a blackjack. It pays 3:2
                 eosio::print("player gets a blackjack");
-                finish_game(get_session(ses_id).deposit + 3 * bet.get(ses_id).ante / 2, std::move(cards));
+                finish_game(get_session(ses_id).deposit + 3 * ante / 2, std::move(cards));
                 return;
             }
             update_state(state_itr, game_state::require_play);
@@ -251,12 +251,14 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
             break;
         }
         case game_state::deal_one_card: {
-            const auto [res, player_card] = handle_deal_one_card(state_itr, std::move(rand));
+            eosio::print("player hits");
+            const auto [res, player_card] = deal_a_card(state_itr, std::move(rand));
+            send_game_message(std::vector<param_t>{player_card.get_value()});
             if (res == outcome::dealer) {
                 // players busts
                 if (!state_itr->has_split() || state_itr->second_round) {
-                    const auto [win, dealer_cards] = compare_and_finish(state_itr, bet_itr->ante, std::move(rand));
-                    finish_game(get_session(ses_id).deposit + win, std::vector<param_t>{player_card.get_value()});
+                    const auto [win, dealer_cards] = compare_and_finish(state_itr, ante, std::move(rand));
+                    finish_game(get_session(ses_id).deposit + win, std::move(dealer_cards));
                     return;
                 } else {
                     finish_first_round(state_itr);
@@ -264,16 +266,16 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
             }
             update_state(state_itr, game_state::require_play);
             require_action(action::play);
-            send_game_message(std::vector<param_t>{player_card.get_value()});
             break;
         }
         case game_state::double_down: {
             eosio::print("player doubles down");
-            const auto [res, player_card] = handle_deal_one_card(state_itr, std::move(rand));
-            check(res == outcome::carry_on, "invariant check failed, player cannot bust when doubling");
+            const auto [res, player_card] = deal_a_card(state_itr, std::move(rand));
+            check(res == outcome::carry_on, "invariant check failed: player cannot bust when doubling");
+            send_game_message(std::vector<param_t>{player_card.get_value()});
             if (!state_itr->has_split() || state_itr->second_round) {
-                const auto [win, dealer_cards] = compare_and_finish(state_itr, bet_itr->ante * 2, std::move(rand));
-                finish_game(get_session(ses_id).deposit + win, std::vector<param_t>{player_card.get_value()});
+                const auto [win, dealer_cards] = compare_and_finish(state_itr, ante * 2, std::move(rand));
+                finish_game(get_session(ses_id).deposit + win, std::move(dealer_cards));
                 return;
             } else {
                 state.modify(state_itr, get_self(), [&](auto& row) {
@@ -283,11 +285,10 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
             }
             update_state(state_itr, game_state::require_play);
             require_action(action::play);
-            send_game_message(std::vector<param_t>{player_card.get_value()});
             break;
         }
         case game_state::stand: {
-            const auto [win, dealer_cards] = compare_and_finish(state_itr, bet_itr->ante, std::move(rand));
+            const auto [win, dealer_cards] = compare_and_finish(state_itr, ante, std::move(rand));
             finish_game(get_session(ses_id).deposit + win, std::move(dealer_cards));
             break;
         }

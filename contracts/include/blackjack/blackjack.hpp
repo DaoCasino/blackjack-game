@@ -108,10 +108,8 @@ public:
         carry_on
     };
 
-
-    std::tuple<outcome, cards_t, cards_t> handle_deal_cards(state_table::const_iterator itr, checksum256&& rand);
-    std::tuple<outcome, card> handle_deal_one_card(state_table::const_iterator itr, checksum256&& rand);
-    std::tuple<outcome, cards_t> handle_stand(state_table::const_iterator itr, checksum256&& rand);
+    std::tuple<outcome, cards_t, cards_t> deal_initial_cards(state_table::const_iterator itr, checksum256&& rand);
+    std::tuple<outcome, card> deal_a_card(state_table::const_iterator itr, checksum256&& rand);
 
     std::tuple<asset, std::vector<param_t>> compare_and_finish(state_table::const_iterator state_itr, asset ante, checksum256&& rand);
     cards_t open_dealer_cards(state_table::const_iterator state_itr, checksum256&& rand);

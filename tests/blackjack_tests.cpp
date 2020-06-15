@@ -76,7 +76,11 @@ public:
                             : abi_ser[game_name].binary_to_variant("state_row", data, abi_serializer_max_time);
     }
 
-    void push_cards(uint64_t ses_id, const card_game::labels_t& labels) {
+    void push_cards(uint64_t ses_id, const card_game::cards_t& cards) {
+        card_game::labels_t labels(cards.size());
+        for (int i = 0; i < cards.size(); i++) {
+            labels[i] = cards[i].to_string();
+        }
         BOOST_REQUIRE_EQUAL(
             push_action(
                 game_name,
@@ -88,6 +92,19 @@ public:
             ),
             success()
         );
+    }
+
+    card_game::cards_t get_cards(events_id event_id) {
+        std::vector<card> result;
+        if (const std::optional<std::vector<fc::variant>> msg_events = get_events(event_id); msg_events != std::nullopt){
+            const auto& event = msg_events->back();
+            const auto values = fc::raw::unpack<std::vector<uint64_t>>(event["msg"].as<bytes>());
+            result.resize(values.size());
+            for (int i = 0; i < values.size(); i++) {
+                result[i] = card(values[i]);
+            }
+        }
+        return result;
     }
 
     void check_player_win(asset win) {
@@ -503,6 +520,73 @@ BOOST_FIXTURE_TEST_CASE(player_split_double_blackjack, blackjack_tester) try {
     signidice(game_name, ses_id);
     check_player_win(STRSYM("300.0000"));
 } FC_LOG_AND_RETHROW()
+
+BOOST_FIXTURE_TEST_CASE(initial_cards_game_message, blackjack_tester) {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
+    bet(ses_id, STRSYM("100.0000"));
+
+    cards_t initial_cards{"Jd", "Js", "Td"};
+    push_cards(ses_id, initial_cards);
+    signidice(game_name, ses_id);
+    BOOST_REQUIRE_EQUAL(get_cards(events_id::game_message), initial_cards);
+}
+
+BOOST_FIXTURE_TEST_CASE(initial_cards_blackjack_game_message, blackjack_tester) {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
+    bet(ses_id, STRSYM("100.0000"));
+
+    cards_t initial_cards{"Ad", "Js", "Td", "7c"};
+    push_cards(ses_id, initial_cards);
+    signidice(game_name, ses_id);
+    BOOST_REQUIRE_EQUAL(get_cards(events_id::game_finished), initial_cards);
+}
+
+BOOST_FIXTURE_TEST_CASE(hit_game_message, blackjack_tester) {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
+    bet(ses_id, STRSYM("100.0000"));
+
+    cards_t initial_cards{"8c", "Js", "Td"};
+    push_cards(ses_id, initial_cards);
+    signidice(game_name, ses_id);
+
+    hit(ses_id);
+    push_cards(ses_id, {"As"});
+    signidice(game_name, ses_id);
+
+    BOOST_REQUIRE_EQUAL(get_cards(events_id::game_message), cards_t{"As"});
+}
+
+BOOST_FIXTURE_TEST_CASE(double_down_game_message, blackjack_tester) {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
+    bet(ses_id, STRSYM("100.0000"));
+
+    cards_t initial_cards{"8c", "3s", "Td"};
+    push_cards(ses_id, initial_cards);
+    signidice(game_name, ses_id);
+
+    double_down(ses_id);
+    push_cards(ses_id, {"As", "Kh"});
+    signidice(game_name, ses_id);
+
+    BOOST_REQUIRE_EQUAL(get_cards(events_id::game_message), cards_t{"As"});
+    BOOST_REQUIRE_EQUAL(get_cards(events_id::game_finished), cards_t{"Kh"});
+}
+
+BOOST_FIXTURE_TEST_CASE(split_game_message, blackjack_tester) {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
+    bet(ses_id, STRSYM("100.0000"));
+
+    cards_t initial_cards{"8c", "3s", "Td"};
+    push_cards(ses_id, initial_cards);
+    signidice(game_name, ses_id);
+
+    double_down(ses_id);
+    push_cards(ses_id, {"As", "Kh"});
+    signidice(game_name, ses_id);
+
+    BOOST_REQUIRE_EQUAL(get_cards(events_id::game_message), cards_t{"As"});
+    BOOST_REQUIRE_EQUAL(get_cards(events_id::game_finished), cards_t{"Kh"});
+}
 
 #endif
 
