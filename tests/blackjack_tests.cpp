@@ -1,5 +1,7 @@
 #define TEST 1
 
+#include <iostream>
+
 #include <game_tester/game_tester.hpp>
 #include <game_tester/strategy.hpp>
 #include <fc/reflect/reflect.hpp>
@@ -204,8 +206,6 @@ BOOST_FIXTURE_TEST_CASE(invalid_action, blackjack_tester) try {
     );
 } FC_LOG_AND_RETHROW()
 
-#define IS_DEBUG
-
 #ifdef IS_DEBUG
 
 char hard_decision[10][10] = {
@@ -267,21 +267,21 @@ char get_decision(int player_sum, int dealer_rank, bool hard, bool pair) {
     return d;
 }
 
-BOOST_FIXTURE_TEST_CASE(rtp_test, blackjack_tester) try {
-    const int rounds = 100;
-    const asset starting_balance = get_balance(player_name);
+const int ROUNDS_PER_BATCH = 1000;
+
+std::pair<asset, asset> get_batch_result() {
+    blackjack_tester t;
+    const asset starting_balance = t.get_balance(blackjack_tester::player_name);
     const asset bet_amount = STRSYM("1.0000");
     const asset deposit_amount = STRSYM("1.5000");
     asset all_bets_sum = STRSYM("0.0000");
 
-    for (int i = 0; i < rounds; i++) {
-        const auto player_balance_before = get_balance(player_name);
-        const auto ses_id = new_game_session(game_name, player_name, casino_id, deposit_amount);
+    for (int i = 0; i < ROUNDS_PER_BATCH; i++) {
+        const auto ses_id = t.new_game_session(blackjack_tester::game_name, blackjack_tester::player_name, blackjack_tester::casino_id, deposit_amount);
         all_bets_sum += bet_amount;
-
-        bet(ses_id, bet_amount);
-        signidice(game_name, ses_id);
-        const auto initial_cards = get_cards(events_id::game_message);
+        t.bet(ses_id, bet_amount);
+        t.signidice(blackjack_tester::game_name, ses_id);
+        const auto initial_cards = t.get_cards(events_id::game_message);
 
         if (!initial_cards.empty()) {
             // no blackjack at the begining
@@ -291,7 +291,7 @@ BOOST_FIXTURE_TEST_CASE(rtp_test, blackjack_tester) try {
             fc::variant state;
             bool game_finished = false;
             while (!game_finished) {
-                const auto& state = get_state(ses_id);
+                const auto& state = t.get_state(ses_id);
                 const bool has_split = !state["split_cards"].as<cards_t>().empty();
                 auto cards = state["player_cards"].as<cards_t>();
                 BOOST_TEST_MESSAGE("Player's cards: " << cards);
@@ -300,26 +300,26 @@ BOOST_FIXTURE_TEST_CASE(rtp_test, blackjack_tester) try {
                 BOOST_TEST_MESSAGE("Decision: " << d << " sum: " << card_game::get_weight(cards));
                 switch(d) {
                 case 'H':
-                    hit(ses_id);
+                    t.hit(ses_id);
                     break;
                 case 'S':
-                    stand(ses_id);
+                    t.stand(ses_id);
                     break;
                 case 'D':
                     if (cards.size() == 2) {
-                        double_down(ses_id);
+                        t.double_down(ses_id);
                         all_bets_sum += bet_amount;
                     } else {
                         // otherwise just hit
-                        hit(ses_id);
+                        t.hit(ses_id);
                     }
                     break;
                 case 'P':
                     if (!has_split) {
-                        split(ses_id);
+                        t.split(ses_id);
                         all_bets_sum += bet_amount;
                     } else {
-                        hit(ses_id);
+                        t.hit(ses_id);
                     }
                     break;
                 default:
@@ -329,8 +329,8 @@ BOOST_FIXTURE_TEST_CASE(rtp_test, blackjack_tester) try {
                 if (d == 'S' && has_split && !state["second_round"].as<bool>()) {
                     continue;
                 }
-                signidice(game_name, ses_id);
-                auto dealer_cards = get_cards(events_id::game_finished);
+                t.signidice(t.game_name, ses_id);
+                auto dealer_cards = t.get_cards(events_id::game_finished);
                 if (!dealer_cards.empty()) {
                     game_finished = true;
                     dealer_cards.insert(dealer_cards.begin(), dealer_card);
@@ -338,18 +338,31 @@ BOOST_FIXTURE_TEST_CASE(rtp_test, blackjack_tester) try {
                 }
             }
         } else {
-            BOOST_TEST_MESSAGE("Initial cards dealt: " << get_cards(events_id::game_finished));
+            BOOST_TEST_MESSAGE("Initial cards dealt: " << t.get_cards(events_id::game_finished));
         }
-        BOOST_TEST_MESSAGE("Player's win: " << get_balance(player_name) - player_balance_before);
-        BOOST_TEST_MESSAGE("================");
     }
+    BOOST_TEST_MESSAGE("Player's win: " << t.get_balance(t.player_name) - t.starting_balance);
+    BOOST_TEST_MESSAGE("================");
+    return std::make_pair(t.get_balance(t.player_name) - t.starting_balance, all_bets_sum);
+
+}
+BOOST_AUTO_TEST_CASE(rtp_test, *boost::unit_test::disabled()) try {
+    const int rounds = 1'000'000;
+    const int batches = rounds / ROUNDS_PER_BATCH;
+    asset returned = STRSYM("0.0000");
+    asset all_bets_sum = STRSYM("0.0000");
+    for (int i = 0; i < batches; i++) {
+        const auto [r, b] = get_batch_result();
+        returned += r;
+        all_bets_sum += b;
+    }
+
     const auto to_double = [](const asset& value) -> double {
         return double(value.get_amount()) / value.precision();
     };
-    const auto rtp = to_double(get_balance(player_name) - starting_balance) / to_double(all_bets_sum) + 1;
-    BOOST_TEST_MESSAGE("RTP: " << rtp);
-    // BOOST_TEST(rtp == 0.98, boost::test_tools::tolerance(0.0005));
-
+    const auto rtp = to_double(returned) / to_double(all_bets_sum) + 1;
+    std::cerr << "RTP " << rtp << "\n";
+    BOOST_TEST(rtp == 0.994, boost::test_tools::tolerance(0.001));
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(invalid_decision, blackjack_tester) try {
