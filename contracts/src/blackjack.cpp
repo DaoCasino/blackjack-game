@@ -204,9 +204,7 @@ void blackjack::on_action(uint64_t ses_id, uint16_t type, std::vector<game_sdk::
                 const auto& cards = state_itr->player_cards;
                 // https://wizardofodds.com/games/blackjack/strategy/european/
                 const auto w = card_game::get_weight(cards);
-                const auto hard = std::find_if(cards.begin(), cards.end(), [&](const auto& card) {
-                    return card.get_rank() == card_game::rank::ACE;
-                }) == cards.end();
+                const auto hard = card_game::is_hard(cards);
                 check(9 <= w && w <= 11 && hard, "player may only double on hard totals of 9-11");
                 check_deposit(get_session(ses_id).deposit, ante * 2, state_itr->first_round_ante);
                 update_max_win(2 * get_session(ses_id).deposit);

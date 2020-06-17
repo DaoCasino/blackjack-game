@@ -124,6 +124,8 @@ enum class color {
     SPADE
 };
 
+using cards_t = std::vector<card>;
+
 static int get_weight(const card& c) {
     if (c.get_rank() == rank::ACE) {
         return 1;
@@ -132,8 +134,6 @@ static int get_weight(const card& c) {
     }
     return 10;
 }
-
-using cards_t = std::vector<card>;
 
 static int get_weight(const cards_t& cards) {
     int aces = 0, w = 0;
@@ -149,6 +149,18 @@ static int get_weight(const cards_t& cards) {
         --aces;
     }
     return w;
+}
+
+bool is_hard(const cards_t& cards) {
+    int aces = 0, w = 0;
+    for (const auto& c : cards) {
+        if (c.get_rank() == card_game::rank::ACE) {
+            aces++;
+        }
+        w += card_game::get_weight(c);
+    }
+    // A hand without an ace hand in which all the aces have a value of 1, is known as a “hard hand”
+    return !aces || w + 10 > 21;
 }
 
 static std::ostream& operator<<(std::ostream& os, const card& c) {

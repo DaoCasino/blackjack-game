@@ -17,6 +17,7 @@ public:
     static const name game_name;
     static const name player_name;
     static const asset starting_balance;
+    static const asset zero_asset;
     static constexpr uint64_t default_ante_min_bet = 1'0000; // 1 BET
     static constexpr uint64_t default_ante_max_bet = 10000'0000;
     static constexpr uint64_t default_max_payout = 100000'0000; // 100k BET
@@ -116,6 +117,7 @@ public:
 const name blackjack_tester::game_name = N(blackjack);
 const name blackjack_tester::player_name = N(player);
 const asset blackjack_tester::starting_balance = STRSYM("80000000.0000");
+const asset blackjack_tester::zero_asset = STRSYM("0.0000");
 
 BOOST_AUTO_TEST_SUITE(blackjack_tests)
 
@@ -202,7 +204,153 @@ BOOST_FIXTURE_TEST_CASE(invalid_action, blackjack_tester) try {
     );
 } FC_LOG_AND_RETHROW()
 
+#define IS_DEBUG
+
 #ifdef IS_DEBUG
+
+char hard_decision[10][10] = {
+    {'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H'},
+    {'H', 'D', 'D', 'D', 'D', 'H', 'H', 'H', 'H', 'H'},
+    {'D', 'D', 'D', 'D', 'D', 'D', 'D', 'D', 'H', 'H'},
+    {'D', 'D', 'D', 'D', 'D', 'D', 'D', 'D', 'H', 'H'},
+    {'H', 'H', 'S', 'S', 'S', 'H', 'H', 'H', 'H', 'H'},
+    {'S', 'S', 'S', 'S', 'S', 'H', 'H', 'H', 'H', 'H'},
+    {'S', 'S', 'S', 'S', 'S', 'H', 'H', 'H', 'H', 'H'},
+    {'S', 'S', 'S', 'S', 'S', 'H', 'H', 'H', 'H', 'H'},
+    {'S', 'S', 'S', 'S', 'S', 'H', 'H', 'H', 'H', 'H'},
+    {'S', 'S', 'S', 'S', 'S', 'S', 'S', 'S', 'S', 'S'}
+};
+
+char soft_decision[3][10] = {
+    {'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H'},
+    {'S', 'S', 'S', 'S', 'S', 'S', 'S', 'H', 'H', 'H'},
+    {'S', 'S', 'S', 'S', 'S', 'S', 'S', 'S', 'S', 'S'}
+};
+
+char pair_decision[10][10] = {
+    {'P', 'P', 'P', 'P', 'P', 'P', 'H', 'H', 'H', 'H'},
+    {'P', 'P', 'P', 'P', 'P', 'P', 'H', 'H', 'H', 'H'},
+    {'H', 'H', 'H', 'P', 'P', 'H', 'H', 'H', 'H', 'H'},
+    {'D', 'D', 'D', 'D', 'D', 'D', 'D', 'D', 'H', 'H'},
+    {'P', 'P', 'P', 'P', 'P', 'H', 'H', 'H', 'H', 'H'},
+    {'P', 'P', 'P', 'P', 'P', 'P', 'H', 'H', 'H', 'H'},
+    {'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'H', 'H'},
+    {'P', 'P', 'P', 'P', 'P', 'S', 'P', 'P', 'S', 'S'},
+    {'S', 'S', 'S', 'S', 'S', 'S', 'S', 'S', 'S', 'S'},
+    {'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'H'}
+};
+
+char get_decision(int player_sum, int dealer_rank, bool hard, bool pair) {
+    char d;
+    if (pair) {
+        d = pair_decision[player_sum / 2 - 2][dealer_rank];
+    } else if (hard) {
+        BOOST_CHECK(5 <= player_sum);
+        if (player_sum <= 8) {
+            d = hard_decision[0][dealer_rank];
+        } else if (player_sum <= 16) {
+            d = hard_decision[player_sum - 8][dealer_rank];
+        } else {
+            d = hard_decision[9][dealer_rank];
+        }
+    } else {
+        // A (11) + 2
+        BOOST_CHECK(13 <= player_sum);
+        if (player_sum <= 17) {
+            d = soft_decision[0][dealer_rank];
+        } else if (player_sum == 18) {
+            d = soft_decision[1][dealer_rank];
+        } else {
+            d = soft_decision[2][dealer_rank];
+        }
+    }
+    return d;
+}
+
+BOOST_FIXTURE_TEST_CASE(rtp_test, blackjack_tester) try {
+    const int rounds = 100;
+    const asset starting_balance = get_balance(player_name);
+    const asset bet_amount = STRSYM("1.0000");
+    const asset deposit_amount = STRSYM("1.5000");
+    asset all_bets_sum = STRSYM("0.0000");
+
+    for (int i = 0; i < rounds; i++) {
+        const auto player_balance_before = get_balance(player_name);
+        const auto ses_id = new_game_session(game_name, player_name, casino_id, deposit_amount);
+        all_bets_sum += bet_amount;
+
+        bet(ses_id, bet_amount);
+        signidice(game_name, ses_id);
+        const auto initial_cards = get_cards(events_id::game_message);
+
+        if (!initial_cards.empty()) {
+            // no blackjack at the begining
+            BOOST_TEST_MESSAGE("Initial cards dealt: " << initial_cards);
+            const auto dealer_card = initial_cards.back();
+            const auto dealer_shifted_rank = (dealer_card.get_rank() == card_game::rank::ACE ? 11 : card_game::get_weight(dealer_card)) - 2;
+            fc::variant state;
+            bool game_finished = false;
+            while (!game_finished) {
+                const auto& state = get_state(ses_id);
+                const bool has_split = !state["split_cards"].as<cards_t>().empty();
+                auto cards = state["player_cards"].as<cards_t>();
+                BOOST_TEST_MESSAGE("Player's cards: " << cards);
+                const bool pair = (cards.size() == 2 && cards[0].get_rank() == cards[1].get_rank());
+                const char d = get_decision(card_game::get_weight(cards), dealer_shifted_rank, card_game::is_hard(cards), pair);
+                BOOST_TEST_MESSAGE("Decision: " << d << " sum: " << card_game::get_weight(cards));
+                switch(d) {
+                case 'H':
+                    hit(ses_id);
+                    break;
+                case 'S':
+                    stand(ses_id);
+                    break;
+                case 'D':
+                    if (cards.size() == 2) {
+                        double_down(ses_id);
+                        all_bets_sum += bet_amount;
+                    } else {
+                        // otherwise just hit
+                        hit(ses_id);
+                    }
+                    break;
+                case 'P':
+                    if (!has_split) {
+                        split(ses_id);
+                        all_bets_sum += bet_amount;
+                    } else {
+                        hit(ses_id);
+                    }
+                    break;
+                default:
+                    throw std::logic_error("unknown decision");
+                }
+
+                if (d == 'S' && has_split && !state["second_round"].as<bool>()) {
+                    continue;
+                }
+                signidice(game_name, ses_id);
+                auto dealer_cards = get_cards(events_id::game_finished);
+                if (!dealer_cards.empty()) {
+                    game_finished = true;
+                    dealer_cards.insert(dealer_cards.begin(), dealer_card);
+                    BOOST_TEST_MESSAGE("Dealer opens with " << dealer_cards);
+                }
+            }
+        } else {
+            BOOST_TEST_MESSAGE("Initial cards dealt: " << get_cards(events_id::game_finished));
+        }
+        BOOST_TEST_MESSAGE("Player's win: " << get_balance(player_name) - player_balance_before);
+        BOOST_TEST_MESSAGE("================");
+    }
+    const auto to_double = [](const asset& value) -> double {
+        return double(value.get_amount()) / value.precision();
+    };
+    const auto rtp = to_double(get_balance(player_name) - starting_balance) / to_double(all_bets_sum) + 1;
+    BOOST_TEST_MESSAGE("RTP: " << rtp);
+    // BOOST_TEST(rtp == 0.98, boost::test_tools::tolerance(0.0005));
+
+} FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(invalid_decision, blackjack_tester) try {
     const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
