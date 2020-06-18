@@ -271,12 +271,13 @@ const int ROUNDS_PER_BATCH = 1000;
 
 std::pair<asset, asset> get_batch_result() {
     blackjack_tester t;
-    const asset starting_balance = t.get_balance(blackjack_tester::player_name);
+    const asset before_batch_balance = t.get_balance(blackjack_tester::player_name);
     const asset bet_amount = STRSYM("1.0000");
     const asset deposit_amount = STRSYM("1.5000");
     asset all_bets_sum = STRSYM("0.0000");
 
     for (int i = 0; i < ROUNDS_PER_BATCH; i++) {
+        const auto before_round_balance = t.get_balance(blackjack_tester::player_name);
         const auto ses_id = t.new_game_session(blackjack_tester::game_name, blackjack_tester::player_name, blackjack_tester::casino_id, deposit_amount);
         all_bets_sum += bet_amount;
         t.bet(ses_id, bet_amount);
@@ -340,12 +341,12 @@ std::pair<asset, asset> get_batch_result() {
         } else {
             BOOST_TEST_MESSAGE("Initial cards dealt: " << t.get_cards(events_id::game_finished));
         }
+        BOOST_TEST_MESSAGE("Player's win: " << t.get_balance(t.player_name) - before_round_balance);
+        BOOST_TEST_MESSAGE("================");
     }
-    BOOST_TEST_MESSAGE("Player's win: " << t.get_balance(t.player_name) - t.starting_balance);
-    BOOST_TEST_MESSAGE("================");
-    return std::make_pair(t.get_balance(t.player_name) - t.starting_balance, all_bets_sum);
-
+    return std::make_pair(t.get_balance(t.player_name) - before_batch_balance, all_bets_sum);
 }
+
 BOOST_AUTO_TEST_CASE(rtp_test, *boost::unit_test::disabled()) try {
     const int rounds = 1'000'000;
     const int batches = rounds / ROUNDS_PER_BATCH;
