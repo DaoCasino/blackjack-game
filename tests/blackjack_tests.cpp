@@ -348,6 +348,10 @@ std::pair<asset, asset> get_batch_result() {
 }
 
 BOOST_AUTO_TEST_CASE(rtp_test, *boost::unit_test::disabled()) try {
+    const auto to_double = [](const asset& value) -> double {
+        return double(value.get_amount()) / value.precision();
+    };
+
     const int rounds = 1'000'000;
     const int batches = rounds / ROUNDS_PER_BATCH;
     asset returned = STRSYM("0.0000");
@@ -356,13 +360,10 @@ BOOST_AUTO_TEST_CASE(rtp_test, *boost::unit_test::disabled()) try {
         const auto [r, b] = get_batch_result();
         returned += r;
         all_bets_sum += b;
+        std::cerr << "Batch #" << i + 1 << " completed, rtp: " << to_double(returned) / to_double(all_bets_sum) + 1 << "\n";
     }
 
-    const auto to_double = [](const asset& value) -> double {
-        return double(value.get_amount()) / value.precision();
-    };
     const auto rtp = to_double(returned) / to_double(all_bets_sum) + 1;
-    std::cerr << "RTP " << rtp << "\n";
     BOOST_TEST(rtp == 0.994, boost::test_tools::tolerance(0.001));
 } FC_LOG_AND_RETHROW()
 
