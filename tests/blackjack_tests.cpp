@@ -362,7 +362,6 @@ BOOST_AUTO_TEST_CASE(rtp_test, *boost::unit_test::disabled()) try {
         all_bets_sum += b;
         std::cerr << "Batch #" << i + 1 << " completed, rtp: " << to_double(returned) / to_double(all_bets_sum) + 1 << "\n";
     }
-
     const auto rtp = to_double(returned) / to_double(all_bets_sum) + 1;
     BOOST_TEST(rtp == 0.994, boost::test_tools::tolerance(0.001));
 } FC_LOG_AND_RETHROW()
@@ -615,7 +614,7 @@ BOOST_FIXTURE_TEST_CASE(player_split_doubles_lose_win, blackjack_tester) try {
     check_player_win(-STRSYM("100.0000"));
 } FC_LOG_AND_RETHROW()
 
-BOOST_FIXTURE_TEST_CASE(player_split_doubles_down_both, blackjack_tester) try {
+BOOST_FIXTURE_TEST_CASE(player_split_doubles_down_both_loss, blackjack_tester) try {
     const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
     bet(ses_id, STRSYM("100.0000"));
 
@@ -663,6 +662,31 @@ BOOST_FIXTURE_TEST_CASE(player_split_max_loss_case, blackjack_tester) try {
     push_cards(ses_id, {"7s", "Ah"});
     signidice(game_name, ses_id);
     check_player_win(-STRSYM("600.0000"));
+} FC_LOG_AND_RETHROW()
+
+BOOST_FIXTURE_TEST_CASE(player_split_doubles_max_win_case, blackjack_tester) try {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("150.0000"));
+    bet(ses_id, STRSYM("100.0000"));
+
+    push_cards(ses_id, {"6d", "6s", "Td"});
+    signidice(game_name, ses_id);
+
+    split(ses_id);
+    push_cards(ses_id, {"5s", "4d"});
+    signidice(game_name, ses_id);
+
+    // player hits with 6d 5s and gets Jh, total = 21
+    double_down(ses_id);
+    push_cards(ses_id, {"Jh"});
+    signidice(game_name, ses_id);
+
+    // now open player and dealer open cards
+    // player with 6s 4d gets Qs, total = 17
+    // dealer with Td gets 9h, total = 19
+    double_down(ses_id);
+    push_cards(ses_id, {"Qs", "9h"});
+    signidice(game_name, ses_id);
+    check_player_win(STRSYM("400.0000"));
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(player_split_double_blackjack, blackjack_tester) try {
