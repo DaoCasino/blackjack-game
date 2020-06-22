@@ -294,7 +294,7 @@ std::pair<asset, asset> get_batch_result() {
             while (!game_finished) {
                 const auto& state = t.get_state(ses_id);
                 const bool has_split = !state["split_cards"].as<cards_t>().empty();
-                auto cards = state["player_cards"].as<cards_t>();
+                auto cards = state["active_cards"].as<cards_t>();
                 BOOST_TEST_MESSAGE("Player's cards: " << cards);
                 const bool pair = (cards.size() == 2 && cards[0].get_rank() == cards[1].get_rank());
                 const char d = get_decision(card_game::get_weight(cards), dealer_shifted_rank, card_game::is_hard(cards), pair);
@@ -521,7 +521,7 @@ BOOST_FIXTURE_TEST_CASE(check_state_after_split, blackjack_tester) try {
 
     const auto& state = get_state(ses_id);
     const cards_t active_cards{"6d", "8s"}, split_cards{"6s", "Kh"};
-    BOOST_REQUIRE_EQUAL(state["player_cards"].as<cards_t>(), active_cards);
+    BOOST_REQUIRE_EQUAL(state["active_cards"].as<cards_t>(), active_cards);
     BOOST_REQUIRE_EQUAL(state["split_cards"].as<cards_t>(), split_cards);
 } FC_LOG_AND_RETHROW()
 
