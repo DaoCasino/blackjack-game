@@ -240,10 +240,15 @@ char pair_decision[10][10] = {
     {'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'H'}
 };
 
-char get_decision(int player_sum, int dealer_rank, bool hard, bool pair) {
+char get_decision(int player_sum, int dealer_rank, bool hard, bool pair, bool aces) {
     char d;
     if (pair) {
-        d = pair_decision[player_sum / 2 - 2][dealer_rank];
+        if (aces) {
+            // pair of aces (1 + 11)
+            d = pair_decision[9][dealer_rank];
+        } else {
+            d = pair_decision[player_sum / 2 - 2][dealer_rank];
+        }
     } else if (hard) {
         BOOST_CHECK(5 <= player_sum);
         if (player_sum <= 8) {
@@ -297,7 +302,7 @@ std::pair<asset, asset> get_batch_result() {
                 auto cards = state["active_cards"].as<cards_t>();
                 BOOST_TEST_MESSAGE("Player's cards: " << cards);
                 const bool pair = (cards.size() == 2 && cards[0].get_rank() == cards[1].get_rank());
-                const char d = get_decision(card_game::get_weight(cards), dealer_shifted_rank, card_game::is_hard(cards), pair);
+                const char d = get_decision(card_game::get_weight(cards), dealer_shifted_rank, card_game::is_hard(cards), pair, cards[0].get_rank() == card_game::rank::ACE);
                 BOOST_TEST_MESSAGE("Decision: " << d << " sum: " << card_game::get_weight(cards));
                 switch(d) {
                 case 'H':
