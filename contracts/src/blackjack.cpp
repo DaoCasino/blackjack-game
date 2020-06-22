@@ -115,9 +115,6 @@ asset blackjack::get_win(asset ante, outcome result, bool has_blackjack) {
         }
         return ante;
     }
-    if (has_blackjack) {
-        return -3 * ante / 2;
-    }
     return -ante;
 }
 

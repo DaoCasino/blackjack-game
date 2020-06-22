@@ -419,7 +419,7 @@ BOOST_FIXTURE_TEST_CASE(dealer_has_a_blackjack, blackjack_tester) try {
     push_cards(ses_id, {"As"});
     signidice(game_name, ses_id);
     // dealer has Td As
-    check_player_win(-STRSYM("150.0000"));
+    check_player_win(-STRSYM("100.0000"));
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(player_hits_and_busts, blackjack_tester) try {
@@ -666,7 +666,7 @@ BOOST_FIXTURE_TEST_CASE(player_split_max_loss_case, blackjack_tester) try {
     double_down(ses_id);
     push_cards(ses_id, {"7s", "Ah"});
     signidice(game_name, ses_id);
-    check_player_win(-STRSYM("600.0000"));
+    check_player_win(-STRSYM("400.0000"));
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(player_split_doubles_max_win_case, blackjack_tester) try {
