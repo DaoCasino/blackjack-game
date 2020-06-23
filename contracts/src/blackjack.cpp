@@ -25,7 +25,7 @@ void blackjack::check_params(uint64_t ses_id) const {
 void blackjack::check_bet(uint64_t ses_id, const param_t& ante) const {
     check(*get_param_value(ses_id, param::min_ante) <= ante, "ante bet is less than min");
     check(*get_param_value(ses_id, param::max_ante) >= ante, "ante bet is more than max");
-    check(3 * ante / 2 == get_session(ses_id).deposit.amount, "max loss is more than deposit");
+    check(ante == get_session(ses_id).deposit.amount, "max loss is more than deposit");
 }
 
 std::tuple<blackjack::outcome, cards_t, cards_t> blackjack::deal_initial_cards(state_table::const_iterator state_itr, checksum256&& rand) {
@@ -96,10 +96,9 @@ std::tuple<blackjack::outcome, bool> blackjack::compare_cards(const cards_t& act
 cards_t blackjack::open_dealer_cards(state_table::const_iterator state_itr, checksum256&& rand) {
     cards_t dealer_cards{state_itr->dealer_card};
     const auto deck = prepare_deck(state_itr, std::move(rand));
-    int i = 0;
     // dealer should stand on soft 17
-    while (card_game::get_weight(dealer_cards) <= 16) {
-        dealer_cards.push_back(card(deck.at(i++)));
+    for (int i = 0; card_game::get_weight(dealer_cards) <= 16; i++) {
+        dealer_cards.push_back(card(deck.at(i)));
     }
     return dealer_cards;
 }
@@ -115,6 +114,7 @@ asset blackjack::get_win(asset ante, outcome result, bool has_blackjack) {
         }
         return ante;
     }
+    // dealer wins
     return -ante;
 }
 
@@ -137,9 +137,9 @@ std::tuple<asset, std::vector<param_t>> blackjack::compare_and_finish(state_tabl
     return std::make_tuple(player_win, std::move(cards));
 }
 
-void blackjack::check_deposit(asset deposit, asset current_ante, asset prev_round_ante) {
+inline void blackjack::check_deposit(asset deposit, asset current_ante, asset prev_round_ante) {
     eosio::print_f("deposit: %s, current ante: %s, prev round ante: %s\n", deposit, current_ante, prev_round_ante);
-    check(deposit == 3 * current_ante / 2 + 3 * prev_round_ante / 2, "invalid deposit");
+    check(deposit == current_ante + prev_round_ante, "invalid deposit");
 }
 
 void blackjack::on_new_game(uint64_t ses_id) {
@@ -162,7 +162,7 @@ void blackjack::on_action(uint64_t ses_id, uint16_t type, std::vector<game_sdk::
             row.ses_id = ses_id;
             row.ante = asset(params[0], core_symbol);
         });
-        update_max_win(2 * get_session(ses_id).deposit);
+        update_max_win(5 * get_session(ses_id).deposit);
         update_state(state_itr, game_state::deal_cards);
     } else if (type == action::play) {
         check(state_itr->state == game_state::require_play, "game state should be require_play");
@@ -185,14 +185,13 @@ void blackjack::on_action(uint64_t ses_id, uint16_t type, std::vector<game_sdk::
                 check(!state_itr->has_split(), "cannot split again");
                 check(state_itr->active_cards.size() == 2, "cannot split");
                 check(state_itr->active_cards[0].get_rank() == state_itr->active_cards[1].get_rank(), "cannot split non-pair");
-                check_deposit(get_session(ses_id).deposit, 2 * ante, zero_asset);
+                check_deposit(get_session(ses_id).deposit, ante * 2, zero_asset);
                 // split cards
                 state.modify(state_itr, get_self(), [&](auto& row) {
                     row.split_cards.push_back(row.active_cards.back());
                     row.active_cards.pop_back();
                     row.first_round_ante = ante;
                 });
-                update_max_win(2 * get_session(ses_id).deposit);
                 update_state(state_itr, game_state::split);
                 break;
             case decision::double_down: {
@@ -204,7 +203,6 @@ void blackjack::on_action(uint64_t ses_id, uint16_t type, std::vector<game_sdk::
                 const auto hard = card_game::is_hard(cards);
                 check(9 <= w && w <= 11 && hard, "player may only double on hard totals of 9-11");
                 check_deposit(get_session(ses_id).deposit, ante * 2, state_itr->first_round_ante);
-                update_max_win(2 * get_session(ses_id).deposit);
                 update_state(state_itr, game_state::double_down);
                 break;
             }
@@ -321,10 +319,9 @@ void blackjack::on_finish(uint64_t ses_id) {
     }
 }
 
-} // namespace blackjack
-
 #ifndef IS_DEBUG
-GAME_CONTRACT(blackjack::blackjack)
+GAME_CONTRACT(blackjack)
 #else
-GAME_CONTRACT_CUSTOM_ACTIONS(blackjack::blackjack, (pushlabels))
+GAME_CONTRACT_CUSTOM_ACTIONS(blackjack, (pushlabels))
 #endif
+} // namespace blackjack
