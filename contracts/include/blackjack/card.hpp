@@ -37,7 +37,7 @@ enum class color;
 
 // cards are compared by rank
 struct card {
-    card() = default;
+    card(): value(UNINITIALIZED) {}
     explicit card(int v): value(v) {}
     explicit card(const std::string& card) {
         static const auto& labels = get_labels();
@@ -90,6 +90,7 @@ struct card {
         return value;
     }
 
+    static constexpr int UNINITIALIZED = 100;
 private:
     unsigned value;
 
@@ -122,6 +123,62 @@ enum class color {
     HEART,
     SPADE
 };
+
+using cards_t = std::vector<card>;
+
+static int get_weight(const card& c) {
+    if (c.get_rank() == rank::ACE) {
+        return 1;
+    } else if (c.get_rank() < rank::TEN) {
+        return static_cast<int>(c.get_rank()) + 2;
+    }
+    return 10;
+}
+
+static int get_weight(const cards_t& cards) {
+    int aces = 0, w = 0;
+    for (const card& c : cards) {
+        if (c.get_rank() == rank::ACE) {
+            aces++;
+        }
+        w += get_weight(c);
+    }
+    // maximum possible weight less that 21
+    while (aces && w + 10 <= 21) {
+        w += 10;
+        --aces;
+    }
+    return w;
+}
+
+bool is_hard(const cards_t& cards) {
+    int aces = 0, w = 0;
+    for (const auto& c : cards) {
+        if (c.get_rank() == card_game::rank::ACE) {
+            aces++;
+        }
+        w += card_game::get_weight(c);
+    }
+    // A hand without an ace hand in which all the aces have a value of 1, is known as a “hard hand”
+    return !aces || w + 10 > 21;
+}
+
+static std::ostream& operator<<(std::ostream& os, const card& c) {
+    os << c.to_string();
+    return os;
+}
+
+static std::ostream& operator<<(std::ostream& os, const cards_t& cards) {
+    os << "{";
+    for (int i = 0; i < static_cast<int>(cards.size()) - 1; i++) {
+        os << cards[i] << ", ";
+    }
+    if (!cards.empty()) {
+        os << cards.back();
+    }
+    os << "}";
+    return os;
+}
 
 } // ns card_game
 
