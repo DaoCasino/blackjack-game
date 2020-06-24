@@ -118,7 +118,7 @@ public:
 
     asset get_win(asset ante, outcome result, bool has_blackjack);
 
-    std::tuple<outcome, bool> compare_cards(const cards_t& active_cards, const cards_t& dealer_cards);
+    std::tuple<outcome, bool> compare_cards(const cards_t& active_cards, const cards_t& dealer_cards, bool has_split);
 
     void clean_labels(card_game::labels_t& labels, state_table::const_iterator state_itr) {
         // remove cards from the deck that are in the game

@@ -68,12 +68,13 @@ std::tuple<blackjack::outcome, card> blackjack::deal_a_card(state_table::const_i
     return std::make_tuple(outcome::carry_on, new_card);
 }
 
-std::tuple<blackjack::outcome, bool> blackjack::compare_cards(const cards_t& active_cards, const cards_t& dealer_cards) {
+std::tuple<blackjack::outcome, bool> blackjack::compare_cards(const cards_t& active_cards, const cards_t& dealer_cards, bool has_split) {
     const int player_weight = card_game::get_weight(active_cards);
     const int dealer_weight = card_game::get_weight(dealer_cards);
-    // If both the dealer and player bust, the player loses.
-    const bool player_has_a_blackjack = (active_cards.size() == 2 && player_weight == 21);
+    // An ace and ten value card after a split are counted as a non-blackjack 21
+    const bool player_has_a_blackjack = (active_cards.size() == 2 && player_weight == 21 && !has_split);
     const bool dealer_has_a_blackjack = (dealer_cards.size() == 2 && dealer_weight == 21);
+    // If both the dealer and player bust, the player loses
     if (player_weight > 21) {
         return std::make_tuple(outcome::dealer, dealer_has_a_blackjack);
     }
@@ -121,11 +122,12 @@ asset blackjack::get_win(asset ante, outcome result, bool has_blackjack) {
 std::tuple<asset, std::vector<param_t>> blackjack::compare_and_finish(state_table::const_iterator state_itr, asset ante, checksum256&& rand) {
     // returns players win & dealer's cards
     auto dealer_cards = open_dealer_cards(state_itr, std::move(rand));
-    auto [res, bjack] = compare_cards(state_itr->active_cards, dealer_cards);
+    auto has_split = state_itr->has_split();
+    auto [res, bjack] = compare_cards(state_itr->active_cards, dealer_cards, has_split);
     auto player_win = get_win(ante, res, bjack);
     eosio::print_f("player's 1st round win: %s\n", player_win.to_string());
-    if (state_itr->has_split()) {
-        std::tie(res, bjack) = compare_cards(state_itr->split_cards, dealer_cards);
+    if (has_split) {
+        std::tie(res, bjack) = compare_cards(state_itr->split_cards, dealer_cards, true);
         const auto split_win = get_win(state_itr->first_round_ante, res, bjack);
         player_win += split_win;
         eosio::print_f("player's 2nd round win: %s\n", split_win.to_string());
@@ -291,16 +293,24 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
             // take 2 cards from the deck and send them to frontend
             const auto deck = prepare_deck(state_itr, std::move(rand));
             const auto ncard1 = card(deck[0]), ncard2 = card(deck[1]);
+            const bool aces = state_itr->active_cards[0].get_rank() == card_game::rank::ACE;
             state.modify(state_itr, get_self(), [&](auto& row) {
                 row.active_cards.push_back(ncard1);
                 row.split_cards.push_back(ncard2);
             });
-            update_state(state_itr, game_state::require_play);
-            require_action(action::play);
             send_game_message(std::vector<param_t>{
                 ncard1.get_value(),
                 ncard2.get_value()
             });
+            if (!aces) {
+                update_state(state_itr, game_state::require_play);
+                require_action(action::play);
+            } else {
+                // In most casinos the player is only allowed to draw one card on each split ace
+                // As a general rule, a ten on a split ace (or vice versa) is not considered a natural blackjack and does not get any bonus
+                const auto [win, dealer_cards] = compare_and_finish(state_itr, ante, std::move(rand));
+                finish_game(get_session(ses_id).deposit + win, std::move(dealer_cards));
+            }
             break;
         }
         default:

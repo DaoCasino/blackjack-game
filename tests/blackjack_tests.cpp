@@ -694,7 +694,7 @@ BOOST_FIXTURE_TEST_CASE(player_split_doubles_max_win_case, blackjack_tester) try
     check_player_win(STRSYM("400.0000"));
 } FC_LOG_AND_RETHROW()
 
-BOOST_FIXTURE_TEST_CASE(player_split_double_blackjack, blackjack_tester) try {
+BOOST_FIXTURE_TEST_CASE(player_split_double_21, blackjack_tester) try {
     const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("100.0000"));
     bet(ses_id, STRSYM("100.0000"));
 
@@ -710,7 +710,33 @@ BOOST_FIXTURE_TEST_CASE(player_split_double_blackjack, blackjack_tester) try {
     stand(ses_id);
     push_cards(ses_id, {"7s"});
     signidice(game_name, ses_id);
-    check_player_win(STRSYM("300.0000"));
+    check_player_win(STRSYM("200.0000"));
+} FC_LOG_AND_RETHROW()
+
+BOOST_FIXTURE_TEST_CASE(split_aces_case_general, blackjack_tester) try {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("100.0000"));
+    bet(ses_id, STRSYM("100.0000"));
+
+    push_cards(ses_id, {"Ad", "As", "Td"});
+    signidice(game_name, ses_id);
+
+    split(ses_id);
+    push_cards(ses_id, {"9s", "Ac", "Qd"});
+    signidice(game_name, ses_id);
+    check_player_win(-STRSYM("100.0000"));
+} FC_LOG_AND_RETHROW()
+
+BOOST_FIXTURE_TEST_CASE(split_aces_case_blackjack, blackjack_tester) try {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("100.0000"));
+    bet(ses_id, STRSYM("100.0000"));
+
+    push_cards(ses_id, {"Ad", "As", "Td"});
+    signidice(game_name, ses_id);
+
+    split(ses_id);
+    push_cards(ses_id, {"Js", "Jd", "7s"});
+    signidice(game_name, ses_id);
+    check_player_win(STRSYM("200.0000"));
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(initial_cards_game_message, blackjack_tester) {
