@@ -368,7 +368,7 @@ BOOST_AUTO_TEST_CASE(rtp_test, *boost::unit_test::disabled()) try {
         std::cerr << "Batch #" << i + 1 << " completed, rtp: " << to_double(returned) / to_double(all_bets_sum) + 1 << "\n";
     }
     const auto rtp = to_double(returned) / to_double(all_bets_sum) + 1;
-    BOOST_TEST(rtp == 0.994, boost::test_tools::tolerance(0.001));
+    BOOST_TEST(rtp == 0.993, boost::test_tools::tolerance(0.001));
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(invalid_decision, blackjack_tester) try {
