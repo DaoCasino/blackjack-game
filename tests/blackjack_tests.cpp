@@ -21,7 +21,8 @@ public:
     static const asset starting_balance;
     static const asset zero_asset;
     static constexpr uint64_t default_ante_min_bet = 1'0000; // 1 BET
-    static constexpr uint64_t default_ante_max_bet = 10000'0000;
+    static constexpr uint64_t default_ante_max_bet = 10000'0000; // 10k
+    static constexpr uint64_t default_pair_max_bet = 1000'0000; // 1k
     static constexpr uint64_t default_max_payout = 100000'0000; // 100k BET
 public:
     blackjack_tester() {
@@ -30,7 +31,8 @@ public:
         game_params_type game_params = {
             {0, default_ante_min_bet},
             {1, default_ante_max_bet},
-            {2, default_max_payout}
+            {2, default_max_payout},
+            {3, default_pair_max_bet}
         };
         deploy_game<blackjack_game>(game_name, game_params);
         create_player(player_name);
@@ -39,8 +41,11 @@ public:
         transfer(N(eosio), casino_name, starting_balance);
     }
 
-    void bet(uint64_t ses_id, asset ante) {
-        game_action(game_name, ses_id, 0, {static_cast<uint64_t>(ante.get_amount())});
+    void bet(uint64_t ses_id, asset ante, asset pair = zero_asset) {
+        game_action(game_name, ses_id, 0, {
+            static_cast<uint64_t>(ante.get_amount()),
+            static_cast<uint64_t>(pair.get_amount())
+        });
     }
 
     void hit(uint64_t ses_id) {
@@ -187,7 +192,7 @@ BOOST_FIXTURE_TEST_CASE(bet_action, blackjack_tester) try {
             game_name,
             N(gameaction),
             {platform_name, N(gameaction)},
-            mvo()("req_id", ses_id)("type", 0)("params", std::vector<param_t>{100'0000})
+            mvo()("req_id", ses_id)("type", 0)("params", std::vector<param_t>{100'0000, 0})
         ),
         success()
     );
@@ -804,6 +809,49 @@ BOOST_FIXTURE_TEST_CASE(split_game_message, blackjack_tester) {
     signidice(game_name, ses_id);
 
     BOOST_REQUIRE_EQUAL(get_cards(events_id::game_message), mock_cards);
+}
+
+// side bets
+
+BOOST_FIXTURE_TEST_CASE(pair_unsuited, blackjack_tester) {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("110.0000"));
+    bet(ses_id, STRSYM("100.0000"), STRSYM("10.0000"));
+
+    cards_t initial_cards{"3c", "3s", "Td"};
+    push_cards(ses_id, initial_cards);
+    signidice(game_name, ses_id);
+
+    push_cards(ses_id, {"As"});
+    stand(ses_id);
+    signidice(game_name, ses_id);
+    // 10 * 8 - 100
+    check_player_win(-STRSYM("20.0000"));
+}
+
+BOOST_FIXTURE_TEST_CASE(pair_suited, blackjack_tester) {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("110.0000"));
+    bet(ses_id, STRSYM("100.0000"), STRSYM("10.0000"));
+
+    cards_t initial_cards{"3s", "3s", "Td"};
+    push_cards(ses_id, initial_cards);
+    signidice(game_name, ses_id);
+
+    push_cards(ses_id, {"As"});
+    stand(ses_id);
+    signidice(game_name, ses_id);
+    // 10 * 25 - 100
+    check_player_win(STRSYM("150.0000"));
+}
+
+BOOST_FIXTURE_TEST_CASE(no_pair, blackjack_tester) {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("110.0000"));
+    bet(ses_id, STRSYM("100.0000"), STRSYM("10.0000"));
+
+    cards_t initial_cards{"Ac", "Kh", "Td", "Jd"};
+    push_cards(ses_id, initial_cards);
+    signidice(game_name, ses_id);
+    // 100 * 1.5 - 10
+    check_player_win(STRSYM("140.0000"));
 }
 
 #endif
