@@ -180,6 +180,49 @@ static std::ostream& operator<<(std::ostream& os, const cards_t& cards) {
     return os;
 }
 
+enum class combination : uint8_t {
+    HIGH_CARD = 0,
+    PAIR,
+    FLUSH,
+    STRAIGHT,
+    STRAIGHT_FLUSH,
+    THREE_OF_A_KIND,
+    SUITED_THREE_OF_A_KIND
+};
+
+combination get_combination(const cards_t& cards) {
+    if (cards[0].get_rank() == cards[1].get_rank() && cards[1].get_rank() == cards[2].get_rank()) {
+        if (cards[0].get_color() == cards[1].get_color() && cards[1].get_color() == cards[2].get_color()) {
+            return combination::SUITED_THREE_OF_A_KIND;
+        }
+        return combination::THREE_OF_A_KIND;
+    }
+    bool flush = (cards[0].get_color() == cards[1].get_color() && cards[1].get_color() == cards[2].get_color());
+    bool straight = false;
+
+    // special case A 3 2 - straight
+    if (cards[0].get_rank() == rank::ACE && cards[1].get_rank() == rank::THREE && cards[2].get_rank() == rank::TWO) {
+        straight = true;
+    }
+
+    if (cards[0].get_rank() == cards[1].next_rank() && cards[1].get_rank() == cards[2].next_rank()) {
+        straight = true;
+    }
+
+    if (straight && flush) {
+        return combination::STRAIGHT_FLUSH;
+    } else if (straight) {
+        return combination::STRAIGHT;
+    } else if (flush) {
+        return combination::FLUSH;
+    }
+
+    if (cards[0].get_rank() == cards[1].get_rank() || cards[1].get_rank() == cards[2].get_rank()) {
+        return combination::PAIR;
+    }
+    return combination::HIGH_CARD;
+}
+
 } // ns card_game
 
 #ifdef TEST

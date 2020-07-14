@@ -12,6 +12,8 @@ using eosio::checksum256;
 using eosio::check;
 using card_game::card;
 using card_game::cards_t;
+using card_game::combination;
+using card_game::get_combination;
 using game_sdk::param_t;
 
 namespace param {
@@ -19,6 +21,7 @@ namespace param {
     const uint16_t max_ante = 1;
     const uint16_t max_payout = 2;
     const uint16_t max_pair = 3;
+    const uint16_t max_first_three = 4;
 }
 
 namespace action {
@@ -40,10 +43,11 @@ public:
         uint64_t ses_id;
         asset ante;
         asset pair;
+        asset first_three;
 
         uint64_t primary_key() const { return ses_id; }
 
-        EOSLIB_SERIALIZE(bet_row, (ses_id)(ante)(pair))
+        EOSLIB_SERIALIZE(bet_row, (ses_id)(ante)(pair)(first_three))
     };
 
     enum game_state {
@@ -70,6 +74,7 @@ public:
 
         // side bets
         asset pair_win;
+        asset first_three_win;
 
         // methods
         bool has_hit() const {
@@ -80,7 +85,7 @@ public:
         }
         uint64_t primary_key() const { return ses_id; }
 
-        EOSLIB_SERIALIZE(state_row, (ses_id)(state)(active_cards)(dealer_card)(split_cards)(first_round_ante)(second_round)(pair_win))
+        EOSLIB_SERIALIZE(state_row, (ses_id)(state)(active_cards)(dealer_card)(split_cards)(first_round_ante)(second_round)(pair_win)(first_three_win))
     };
 
     using bet_table = eosio::multi_index<"bet"_n, bet_row>;
@@ -97,7 +102,7 @@ public:
     void on_finish(uint64_t ses_id) override final;
 
     void check_params(uint64_t ses_id) const;
-    void check_bet(uint64_t ses_id, const param_t& ante_bet, const param_t& pair) const;
+    void check_bet(uint64_t ses_id, const param_t& ante_bet, const param_t& pair, const param_t& first_three) const;
     param_t get_and_check(uint64_t ses_id, uint16_t param, const std::string& error_msg) const;
 
     void update_state(state_table::const_iterator itr, game_state new_state) {
