@@ -133,14 +133,12 @@ asset get_pair_win(const cards_t& cards, asset qty) {
 
 asset get_first_three_win(cards_t player_cards, card third_card, asset qty) {
     player_cards.push_back(third_card);
-    eosio::print_f("Gotta cards: % % %\n", player_cards[0].to_string(), player_cards[1].to_string(), player_cards[2].to_string());
     switch(get_combination(player_cards)) {
         case combination::FLUSH:
             return 5 * qty;
         case combination::STRAIGHT:
             return 10 * qty;
         case combination::THREE_OF_A_KIND:
-            eosio::print("THREE OF A KIND!!");
             return 30 * qty;
         case combination::STRAIGHT_FLUSH:
             return 40 * qty;
