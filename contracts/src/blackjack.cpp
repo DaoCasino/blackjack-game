@@ -222,7 +222,8 @@ void blackjack::on_action(uint64_t ses_id, uint16_t type, std::vector<game_sdk::
             case decision::split:
                 check(!state_itr->has_split(), "cannot split again");
                 check(state_itr->active_cards.size() == 2, "cannot split");
-                check(state_itr->active_cards[0].get_rank() == state_itr->active_cards[1].get_rank(), "cannot split non-pair");
+                check(card_game::get_weight(state_itr->active_cards[0]) ==
+                      card_game::get_weight(state_itr->active_cards[1]), "cannot split cards with different weights");
                 check_deposit(get_session(ses_id).deposit, ante * 2, zero_asset);
                 // split cards
                 state.modify(state_itr, get_self(), [&](auto& row) {
