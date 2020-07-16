@@ -105,8 +105,34 @@ public:
     void check_bet(uint64_t ses_id, const param_t& ante_bet, const param_t& pair, const param_t& first_three) const;
     param_t get_and_check(uint64_t ses_id, uint16_t param, const std::string& error_msg) const;
 
-    void update_state(state_table::const_iterator itr, game_state new_state) {
-        state.modify(itr, get_self(), [&](auto& row) {
+    void validate_new_state(game_state current_state, game_state new_state) {
+        switch(new_state) {
+            case game_state::require_bet:
+                check(0, "cannot update state to require_bet");
+            case game_state::require_play:
+                check(current_state == game_state::deal_one_card ||
+                      current_state == game_state::stand ||
+                      current_state == game_state::double_down ||
+                      current_state == game_state::split ||
+                      current_state == game_state::deal_cards, "cannot update state to require_play");
+                break;
+            case game_state::deal_one_card:
+            case game_state::stand:
+            case game_state::double_down:
+            case game_state::split:
+                check(current_state == game_state::require_play, "state should be require_play");
+                break;
+            case game_state::deal_cards:
+                check(current_state == game_state::require_bet, "state should be require_bet");
+                break;
+            default:
+                check(0, "unknown new_state");
+        }
+    }
+
+    void update_state(state_table::const_iterator state_itr, game_state new_state) {
+        validate_new_state(game_state(state_itr->state), new_state);
+        state.modify(state_itr, get_self(), [&](auto& row) {
             row.state = new_state;
         });
     }
