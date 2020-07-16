@@ -118,13 +118,13 @@ public:
         carry_on
     };
 
-    std::tuple<outcome, cards_t, cards_t> deal_initial_cards(state_table::const_iterator itr, checksum256&& rand);
+    std::tuple<outcome, cards_t, cards_t> deal_initial_cards(state_table::const_iterator itr, const checksum256& rand);
 
-    std::tuple<outcome, card> deal_a_card(state_table::const_iterator itr, checksum256&& rand);
+    std::tuple<outcome, card> deal_a_card(state_table::const_iterator itr, const checksum256& rand);
 
-    std::tuple<asset, std::vector<param_t>> compare_and_finish(state_table::const_iterator state_itr, asset ante, checksum256&& rand);
+    std::tuple<asset, std::vector<param_t>> compare_and_finish(state_table::const_iterator state_itr, asset ante, const checksum256& rand);
 
-    cards_t open_dealer_cards(state_table::const_iterator state_itr, checksum256&& rand);
+    cards_t open_dealer_cards(state_table::const_iterator state_itr, const checksum256& rand);
 
     asset get_win(asset ante, outcome result, bool has_blackjack);
 
@@ -152,7 +152,7 @@ public:
         }
     }
 
-    card_game::labels_t prepare_deck(state_table::const_iterator state_itr, checksum256&& rand) {
+    card_game::labels_t prepare_deck(state_table::const_iterator state_itr, checksum256 rand) {
     #ifdef IS_DEBUG
         auto debug_labels = debug_labels_singleton(_self, _self.value).get_or_default().labels;
         clean_labels(debug_labels, state_itr);
