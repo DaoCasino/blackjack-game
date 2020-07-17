@@ -195,6 +195,7 @@ public:
                 multideck.push_back(label);
             }
         }
+        // remove player's cards
         clean_labels(multideck, state_itr);
         service::shuffle(multideck.begin(), multideck.end(), get_prng(std::move(rand)));
         return multideck;

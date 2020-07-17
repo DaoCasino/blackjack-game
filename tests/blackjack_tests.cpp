@@ -456,12 +456,6 @@ BOOST_FIXTURE_TEST_CASE(player_hits_and_wins, blackjack_tester) try {
     push_cards(ses_id, {"Ac"});
     signidice(game_name, ses_id);
 
-    stand(ses_id);
-
-    // dealer gets 19
-    push_cards(ses_id, {"9c", "4h", "5s"});
-    signidice(game_name, ses_id);
-
     check_player_win(STRSYM("100.0000"));
 } FC_LOG_AND_RETHROW()
 
@@ -710,14 +704,9 @@ BOOST_FIXTURE_TEST_CASE(player_split_double_21, blackjack_tester) try {
     signidice(game_name, ses_id);
 
     split(ses_id);
-    push_cards(ses_id, {"As", "Ad"});
+    push_cards(ses_id, {"As", "Ad", "7s"});
     signidice(game_name, ses_id);
 
-    stand(ses_id);
-
-    stand(ses_id);
-    push_cards(ses_id, {"7s"});
-    signidice(game_name, ses_id);
     check_player_win(STRSYM("200.0000"));
 } FC_LOG_AND_RETHROW()
 

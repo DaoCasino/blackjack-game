@@ -294,8 +294,7 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
             eosio::print("player hits");
             const auto [res, player_card] = deal_a_card(state_itr, rand);
             send_game_message(std::vector<param_t>{player_card.get_value()});
-            if (res == outcome::dealer) {
-                // players busts
+            if (res == outcome::dealer || card_game::get_weight(state_itr->active_cards) == 21) {
                 if (!state_itr->has_split() || state_itr->second_round) {
                     const auto [win, dealer_cards] = compare_and_finish(state_itr, ante, rand);
                     finish_game(get_session(ses_id).deposit + win, std::move(dealer_cards));
@@ -347,6 +346,14 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
                 ncard2.get_value()
             });
             if (!aces) {
+                if (card_game::get_weight(state_itr->active_cards) == 21) {
+                    finish_first_round(state_itr);
+                    if (card_game::get_weight(state_itr->active_cards) == 21) {
+                        const auto [win, dealer_cards] = compare_and_finish(state_itr, ante, rand);
+                        finish_game(get_session(ses_id).deposit + win, std::move(dealer_cards));
+                        return;
+                    }
+                }
                 update_state(state_itr, game_state::require_play);
                 require_action(action::play);
             } else {
