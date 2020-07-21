@@ -111,7 +111,6 @@ public:
                 check(0, "cannot update state to require_bet");
             case game_state::require_play:
                 check(current_state == game_state::deal_one_card ||
-                      current_state == game_state::stand ||
                       current_state == game_state::double_down ||
                       current_state == game_state::split ||
                       current_state == game_state::deal_cards, "cannot update state to require_play");
