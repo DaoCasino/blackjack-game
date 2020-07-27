@@ -453,7 +453,7 @@ BOOST_FIXTURE_TEST_CASE(player_hits_and_wins, blackjack_tester) try {
 
     // player gets a 21 not a blackjack though
     hit(ses_id);
-    push_cards(ses_id, {"Ac"});
+    push_cards(ses_id, {"Ac", "Qs"});
     signidice(game_name, ses_id);
 
     check_player_win(STRSYM("100.0000"));
