@@ -87,7 +87,7 @@ public:
                             : abi_ser[game_name].binary_to_variant("state_row", data, abi_serializer_max_time);
     }
 
-    void push_cards(uint64_t ses_id, const card_game::cards_t& cards) {
+    void push_cards(uint64_t ses_id, const cards_t& cards) {
         card_game::labels_t labels(cards.size());
         for (int i = 0; i < cards.size(); i++) {
             labels[i] = cards[i].to_string();
@@ -105,9 +105,9 @@ public:
         );
     }
 
-    card_game::cards_t get_cards(events_id event_id) {
-        std::vector<card> result;
-        if (const std::optional<std::vector<fc::variant>> msg_events = get_events(event_id); msg_events != std::nullopt){
+    card_game::cards_t get_game_message_cards() {
+        cards_t result;
+        if (const std::optional<std::vector<fc::variant>> msg_events = get_events(events_id::game_message); msg_events != std::nullopt){
             const auto& event = msg_events->back();
             const auto values = fc::raw::unpack<std::vector<uint64_t>>(event["msg"].as<bytes>());
             result.resize(values.size());
@@ -116,6 +116,40 @@ public:
             }
         }
         return result;
+    }
+
+    std::vector<param_t> get_game_finish_message() {
+        if (const std::optional<std::vector<fc::variant>> msg_events = get_events(events_id::game_finished); msg_events != std::nullopt){
+            const auto& event = msg_events->back();
+            return fc::raw::unpack<std::vector<uint64_t>>(event["msg"].as<bytes>());
+        }
+        return {};
+    }
+
+    std::pair<cards_t, cards_t> decode_game_finish_message(const std::vector<param_t>& msg) {
+        if (msg.empty()) {
+            return {{}, {}};
+        }
+        BOOST_CHECK(msg.size() > msg[0] && msg.size() == 2 + msg[0] + msg[msg[0] + 1]);
+        cards_t player_cards, dealer_cards;
+        player_cards.reserve(msg[0]);
+        int i = 1;
+        while (i <= msg[0]) {
+            player_cards.push_back(card(msg[i++]));
+        }
+        dealer_cards.reserve(msg[i++]);
+        while (i < msg.size()) {
+            dealer_cards.push_back(card(msg[i++]));
+        }
+        return {player_cards, dealer_cards};
+    }
+
+    cards_t get_player_finish_cards() {
+        return decode_game_finish_message(get_game_finish_message()).first;
+    }
+
+    cards_t get_dealer_finish_cards() {
+        return decode_game_finish_message(get_game_finish_message()).second;
     }
 
     void check_player_win(asset win) {
@@ -295,7 +329,7 @@ std::pair<asset, asset> get_batch_result() {
         all_bets_sum += bet_amount;
         t.bet(ses_id, bet_amount);
         t.signidice(blackjack_tester::game_name, ses_id);
-        const auto initial_cards = t.get_cards(events_id::game_message);
+        const auto initial_cards = t.get_game_message_cards();
 
         if (!initial_cards.empty()) {
             // no blackjack at the begining
@@ -344,7 +378,7 @@ std::pair<asset, asset> get_batch_result() {
                     continue;
                 }
                 t.signidice(t.game_name, ses_id);
-                auto dealer_cards = t.get_cards(events_id::game_finished);
+                auto dealer_cards = t.get_dealer_finish_cards();
                 if (!dealer_cards.empty()) {
                     game_finished = true;
                     dealer_cards.insert(dealer_cards.begin(), dealer_card);
@@ -352,7 +386,7 @@ std::pair<asset, asset> get_batch_result() {
                 }
             }
         } else {
-            BOOST_TEST_MESSAGE("Initial cards dealt: " << t.get_cards(events_id::game_finished));
+            BOOST_TEST_MESSAGE("Initial cards dealt, player: " << t.get_player_finish_cards() << " dealer: " << t.get_dealer_finish_cards());
         }
         BOOST_TEST_MESSAGE("Player's win: " << t.get_balance(t.player_name) - before_round_balance);
         BOOST_TEST_MESSAGE("================");
@@ -767,17 +801,18 @@ BOOST_FIXTURE_TEST_CASE(initial_cards_game_message, blackjack_tester) {
     cards_t initial_cards{"Jd", "Js", "Td"};
     push_cards(ses_id, initial_cards);
     signidice(game_name, ses_id);
-    BOOST_REQUIRE_EQUAL(get_cards(events_id::game_message), initial_cards);
+    BOOST_REQUIRE_EQUAL(get_game_message_cards(), initial_cards);
 }
 
 BOOST_FIXTURE_TEST_CASE(initial_cards_blackjack_game_message, blackjack_tester) {
     const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("100.0000"));
     bet(ses_id, STRSYM("100.0000"));
 
-    cards_t initial_cards{"Ad", "Js", "Td", "7c"};
-    push_cards(ses_id, initial_cards);
+    push_cards(ses_id, {"Ad", "Js", "Td", "7c"});
     signidice(game_name, ses_id);
-    BOOST_REQUIRE_EQUAL(get_cards(events_id::game_finished), initial_cards);
+    cards_t player_cards{"Ad", "Js"}, dealer_cards{"Td", "7c"};
+    BOOST_REQUIRE_EQUAL(get_player_finish_cards(), player_cards);
+    BOOST_REQUIRE_EQUAL(get_dealer_finish_cards(), dealer_cards);
 }
 
 BOOST_FIXTURE_TEST_CASE(hit_game_message, blackjack_tester) {
@@ -792,7 +827,7 @@ BOOST_FIXTURE_TEST_CASE(hit_game_message, blackjack_tester) {
     push_cards(ses_id, {"As"});
     signidice(game_name, ses_id);
 
-    BOOST_REQUIRE_EQUAL(get_cards(events_id::game_message), cards_t{"As"});
+    BOOST_REQUIRE_EQUAL(get_game_message_cards(), cards_t{"As"});
 }
 
 BOOST_FIXTURE_TEST_CASE(double_down_game_message, blackjack_tester) {
@@ -807,8 +842,8 @@ BOOST_FIXTURE_TEST_CASE(double_down_game_message, blackjack_tester) {
     push_cards(ses_id, {"As", "Kh"});
     signidice(game_name, ses_id);
 
-    BOOST_REQUIRE_EQUAL(get_cards(events_id::game_message), cards_t{"As"});
-    BOOST_REQUIRE_EQUAL(get_cards(events_id::game_finished), cards_t{"Kh"});
+    BOOST_REQUIRE_EQUAL(get_player_finish_cards(), cards_t{"As"});
+    BOOST_REQUIRE_EQUAL(get_dealer_finish_cards(), cards_t{"Kh"});
 }
 
 BOOST_FIXTURE_TEST_CASE(split_game_message, blackjack_tester) {
@@ -824,7 +859,7 @@ BOOST_FIXTURE_TEST_CASE(split_game_message, blackjack_tester) {
     push_cards(ses_id, mock_cards);
     signidice(game_name, ses_id);
 
-    BOOST_REQUIRE_EQUAL(get_cards(events_id::game_message), mock_cards);
+    BOOST_REQUIRE_EQUAL(get_game_message_cards(), mock_cards);
 }
 
 // side bets

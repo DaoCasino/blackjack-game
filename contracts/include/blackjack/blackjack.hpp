@@ -147,13 +147,31 @@ public:
 
     std::tuple<outcome, card> deal_a_card(state_table::const_iterator itr, const checksum256& rand);
 
-    std::tuple<asset, std::vector<param_t>> compare_and_finish(state_table::const_iterator state_itr, asset ante, const checksum256& rand);
+    std::tuple<asset, cards_t> compare_and_finish(state_table::const_iterator state_itr, asset ante, const checksum256& rand);
 
     cards_t open_dealer_cards(state_table::const_iterator state_itr, const checksum256& rand);
 
     asset get_win(asset ante, outcome result, bool has_blackjack);
 
     std::tuple<outcome, bool> compare_cards(const cards_t& active_cards, const cards_t& dealer_cards, bool has_split);
+
+    std::vector<param_t> encode_cards(cards_t&& dealer_cards, cards_t&& player_cards = {}) {
+        std::vector<param_t> result;
+        result.reserve(2 + player_cards.size() + dealer_cards.size());
+        result.push_back(player_cards.size());
+        for (const auto& c : player_cards) {
+            result.push_back(c.get_value());
+        }
+        result.push_back(dealer_cards.size());
+        for (const auto& c : dealer_cards) {
+            result.push_back(c.get_value());
+        }
+        return result;
+    }
+
+    void end_game(asset payout, cards_t&& dealer_cards, cards_t&& player_cards = {}) {
+        finish_game(payout, encode_cards(std::move(dealer_cards), std::move(player_cards)));
+    }
 
     void clean_labels(card_game::labels_t& labels, state_table::const_iterator state_itr) {
         // remove cards from the deck that are in the game

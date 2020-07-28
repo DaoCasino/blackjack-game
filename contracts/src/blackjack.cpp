@@ -149,7 +149,7 @@ asset get_first_three_win(cards_t player_cards, card third_card, asset qty) {
     }
 }
 
-std::tuple<asset, std::vector<param_t>> blackjack::compare_and_finish(state_table::const_iterator state_itr, asset ante, const checksum256& rand) {
+std::tuple<asset, cards_t> blackjack::compare_and_finish(state_table::const_iterator state_itr, asset ante, const checksum256& rand) {
     // returns players win & dealer's cards
     auto dealer_cards = open_dealer_cards(state_itr, rand);
     auto has_split = state_itr->has_split();
@@ -164,11 +164,9 @@ std::tuple<asset, std::vector<param_t>> blackjack::compare_and_finish(state_tabl
     }
     // the first card isn't new. it's been dealt at the begining
     dealer_cards.erase(dealer_cards.begin());
-    std::vector<param_t> cards;
-    for (const auto& c : dealer_cards) { cards.push_back(c.get_value()); }
     // side bets
     player_win += state_itr->pair_win + state_itr->first_three_win;
-    return std::make_tuple(player_win, std::move(cards));
+    return std::make_tuple(player_win, std::move(dealer_cards));
 }
 
 inline void blackjack::check_deposit(asset deposit, asset current_ante, asset prev_round_ante) {
@@ -263,10 +261,7 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
     switch (state_itr->state) {
         case game_state::deal_cards: {
             eosio::print("dealing cards");
-            const auto [res, player_cards, dealer_cards] = deal_initial_cards(state_itr, rand);
-            std::vector<param_t> cards;
-            for (const auto& c : player_cards) { cards.push_back(c.get_value()); }
-            for (const auto& c : dealer_cards) { cards.push_back(c.get_value()); }
+            auto [res, player_cards, dealer_cards] = deal_initial_cards(state_itr, rand);
             asset side_bets_win;
             state.modify(state_itr, get_self(), [&, player_cards = player_cards, dealer_card = dealer_cards[0]](auto& row) {
                 row.pair_win = get_pair_win(player_cards, bet_itr->pair);
@@ -277,32 +272,32 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
             if (res == outcome::draw) {
                 // both players have a blackjack
                 eosio::print("both dealer and player get a blackjack");
-                finish_game(get_session(ses_id).deposit + side_bets_win, std::move(cards));
+                end_game(get_session(ses_id).deposit + side_bets_win, std::move(dealer_cards), std::move(player_cards));
                 return;
             } else if (res == outcome::player) {
                 // player has a blackjack. It pays 3:2
                 eosio::print("player gets a blackjack");
-                finish_game(get_session(ses_id).deposit + 3 * ante / 2 + side_bets_win, std::move(cards));
+                end_game(get_session(ses_id).deposit + 3 * ante / 2 + side_bets_win, std::move(dealer_cards), std::move(player_cards));
                 return;
             }
             update_state(state_itr, game_state::require_play);
             require_action(action::play);
-            send_game_message(std::move(cards));
+            send_game_message(std::vector<param_t>{player_cards[0].get_value(), player_cards[1].get_value(), dealer_cards[0].get_value()});
             break;
         }
         case game_state::deal_one_card: {
             eosio::print("player hits");
             const auto [res, player_card] = deal_a_card(state_itr, rand);
-            send_game_message(std::vector<param_t>{player_card.get_value()});
             if (res == outcome::dealer || card_game::get_weight(state_itr->active_cards) == 21) {
                 if (!state_itr->has_split() || state_itr->second_round) {
-                    const auto [win, dealer_cards] = compare_and_finish(state_itr, ante, rand);
-                    finish_game(get_session(ses_id).deposit + win, std::move(dealer_cards));
+                    auto [win, dealer_cards] = compare_and_finish(state_itr, ante, rand);
+                    end_game(get_session(ses_id).deposit + win, std::move(dealer_cards), {player_card});
                     return;
                 } else {
                     finish_first_round(state_itr);
                 }
             }
+            send_game_message(std::vector<param_t>{player_card.get_value()});
             update_state(state_itr, game_state::require_play);
             require_action(action::play);
             break;
@@ -311,10 +306,9 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
             eosio::print("player doubles down");
             const auto [res, player_card] = deal_a_card(state_itr, rand);
             check(res == outcome::carry_on, "invariant check failed: player cannot bust when doubling");
-            send_game_message(std::vector<param_t>{player_card.get_value()});
             if (!state_itr->has_split() || state_itr->second_round) {
-                const auto [win, dealer_cards] = compare_and_finish(state_itr, ante * 2, rand);
-                finish_game(get_session(ses_id).deposit + win, std::move(dealer_cards));
+                auto [win, dealer_cards] = compare_and_finish(state_itr, ante * 2, rand);
+                end_game(get_session(ses_id).deposit + win, std::move(dealer_cards), {player_card});
                 return;
             } else {
                 state.modify(state_itr, get_self(), [&](auto& row) {
@@ -322,13 +316,14 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
                 });
                 finish_first_round(state_itr);
             }
+            send_game_message(std::vector<param_t>{player_card.get_value()});
             update_state(state_itr, game_state::require_play);
             require_action(action::play);
             break;
         }
         case game_state::stand: {
-            const auto [win, dealer_cards] = compare_and_finish(state_itr, ante, rand);
-            finish_game(get_session(ses_id).deposit + win, std::move(dealer_cards));
+            auto [win, dealer_cards] = compare_and_finish(state_itr, ante, rand);
+            end_game(get_session(ses_id).deposit + win, std::move(dealer_cards));
             break;
         }
         case game_state::split: {
@@ -341,26 +336,26 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
                 row.active_cards.push_back(ncard1);
                 row.split_cards.push_back(ncard2);
             });
-            send_game_message(std::vector<param_t>{
-                ncard1.get_value(),
-                ncard2.get_value()
-            });
             if (!aces) {
                 if (card_game::get_weight(state_itr->active_cards) == 21) {
                     finish_first_round(state_itr);
                     if (card_game::get_weight(state_itr->active_cards) == 21) {
-                        const auto [win, dealer_cards] = compare_and_finish(state_itr, ante, rand);
-                        finish_game(get_session(ses_id).deposit + win, std::move(dealer_cards));
+                        auto [win, dealer_cards] = compare_and_finish(state_itr, ante, rand);
+                        end_game(get_session(ses_id).deposit + win, std::move(dealer_cards), {ncard1, ncard2});
                         return;
                     }
                 }
+                send_game_message(std::vector<param_t>{
+                    ncard1.get_value(),
+                    ncard2.get_value()
+                });
                 update_state(state_itr, game_state::require_play);
                 require_action(action::play);
             } else {
                 // In most casinos the player is only allowed to draw one card on each split ace
                 // As a general rule, a ten on a split ace (or vice versa) is not considered a natural blackjack and does not get any bonus
-                const auto [win, dealer_cards] = compare_and_finish(state_itr, ante, rand);
-                finish_game(get_session(ses_id).deposit + win, std::move(dealer_cards));
+                auto [win, dealer_cards] = compare_and_finish(state_itr, ante, rand);
+                end_game(get_session(ses_id).deposit + win, std::move(dealer_cards));
             }
             break;
         }
