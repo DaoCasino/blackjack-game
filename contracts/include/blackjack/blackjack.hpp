@@ -10,6 +10,7 @@ using eosio::asset;
 using bytes = std::vector<char>;
 using eosio::checksum256;
 using eosio::check;
+using card_game::labels_t;
 using card_game::card;
 using card_game::cards_t;
 using card_game::combination;
@@ -64,11 +65,11 @@ public:
         uint64_t ses_id;
         uint16_t state;
 
-        std::vector<card> active_cards;
+        cards_t active_cards;
         card dealer_card;
 
         // need this to handle split action
-        std::vector<card> split_cards;
+        cards_t split_cards;
         asset first_round_ante;
         bool second_round = false;
 
@@ -145,11 +146,11 @@ public:
 
     std::tuple<outcome, cards_t, cards_t> deal_initial_cards(state_table::const_iterator itr, const checksum256& rand);
 
-    std::tuple<outcome, card> deal_a_card(state_table::const_iterator itr, const checksum256& rand);
+    std::tuple<outcome, card, labels_t> deal_a_card(state_table::const_iterator itr, const checksum256& rand);
 
-    std::tuple<asset, cards_t> compare_and_finish(state_table::const_iterator state_itr, asset ante, const checksum256& rand);
+    std::tuple<asset, cards_t> compare_and_finish(state_table::const_iterator state_itr, asset ante, const checksum256& rand, labels_t&& deck);
 
-    cards_t open_dealer_cards(state_table::const_iterator state_itr, const checksum256& rand);
+    cards_t open_dealer_cards(state_table::const_iterator state_itr, const checksum256& rand, labels_t& deck);
 
     asset get_win(asset ante, outcome result, bool has_blackjack);
 
@@ -214,8 +215,15 @@ public:
         }
         // remove player's cards
         clean_labels(multideck, state_itr);
-        service::shuffle(multideck.begin(), multideck.end(), get_prng(std::move(rand)));
-        return multideck;
+        // draw 9 cards
+        card_game::labels_t result(9);
+        auto prng = get_prng(std::move(rand));
+        for (int i = 0; i < 9; i++) {
+            const auto idx = prng->next() % multideck.size();
+            result[i] = multideck[idx];
+            multideck.erase(multideck.begin() + idx);
+        }
+        return result;
     }
 
     void finish_first_round(state_table::const_iterator state_itr) {
