@@ -127,6 +127,7 @@ public:
     }
 
     std::pair<cards_t, cards_t> decode_game_finish_message(const std::vector<param_t>& msg) {
+        BOOST_TEST_MESSAGE("decoding message, size: " << msg.size());
         if (msg.empty()) {
             return {{}, {}};
         }
@@ -386,7 +387,8 @@ std::pair<asset, asset> get_batch_result() {
                 }
             }
         } else {
-            BOOST_TEST_MESSAGE("Initial cards dealt, player: " << t.get_player_finish_cards() << " dealer: " << t.get_dealer_finish_cards());
+            const cards_t pcards = t.get_player_finish_cards(), dcards = t.get_dealer_finish_cards();
+            BOOST_TEST_MESSAGE("Player gets a blackjack, player: " << pcards << " dealer: " << dcards);
         }
         BOOST_TEST_MESSAGE("Player's win: " << t.get_balance(t.player_name) - before_round_balance);
         BOOST_TEST_MESSAGE("================");
