@@ -936,6 +936,20 @@ BOOST_FIXTURE_TEST_CASE(first_three_bet_three_of_a_kind, blackjack_tester) {
     check_player_win(STRSYM("200.0000"));
 }
 
+BOOST_FIXTURE_TEST_CASE(pair_bet_double_down, blackjack_tester) try {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("110.0000"));
+    bet(ses_id, STRSYM("100.0000"), STRSYM("10.0000"), STRSYM("0.0000"));
+
+    push_cards(ses_id, {"5d", "5s", "Td"});
+    signidice(game_name, ses_id);
+
+    double_down(ses_id);
+    push_cards(ses_id, {"Jd", "Qc"});
+    signidice(game_name, ses_id);
+
+    check_player_win(STRSYM("80.0000"));
+} FC_LOG_AND_RETHROW()
+
 #endif
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -43,8 +43,13 @@ public:
     struct [[eosio::table("bet")]] bet_row {
         uint64_t ses_id;
         asset ante;
+        // side bets
         asset pair;
         asset first_three;
+
+        asset side_bets_sum() const {
+            return pair + first_three;
+        }
 
         uint64_t primary_key() const { return ses_id; }
 
@@ -235,7 +240,7 @@ public:
         });
     }
 
-    void check_deposit(asset deposit, asset current_ante, asset prev_round_ante);
+    void check_deposit(asset deposit, asset current_ante, asset prev_round_ante, asset side_bets_sum);
 
 #ifdef IS_DEBUG
     struct [[eosio::table("labelsdeb")]] labels_deb {
