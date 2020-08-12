@@ -216,6 +216,7 @@ void blackjack::on_action(uint64_t ses_id, uint16_t type, std::vector<game_sdk::
                 if (state_itr->has_split() && !state_itr->second_round) {
                     eosio::print("player stands and swaps active cards");
                     finish_first_round(state_itr);
+                    require_action(action::play);
                     return;
                 }
                 update_state(state_itr, game_state::stand);
