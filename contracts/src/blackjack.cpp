@@ -171,9 +171,9 @@ std::tuple<asset, cards_t> blackjack::compare_and_finish(state_table::const_iter
     return std::make_tuple(player_win, std::move(dealer_cards));
 }
 
-inline void blackjack::check_deposit(asset deposit, asset current_ante, asset prev_round_ante) {
+inline void blackjack::check_deposit(asset deposit, asset current_ante, asset prev_round_ante, asset side_bets) {
     eosio::print_f("deposit: %s, current ante: %s, prev round ante: %s\n", deposit, current_ante, prev_round_ante);
-    check(deposit == current_ante + prev_round_ante, "invalid deposit");
+    check(deposit == current_ante + prev_round_ante + side_bets, "invalid deposit");
 }
 
 void blackjack::on_new_game(uint64_t ses_id) {
@@ -205,7 +205,8 @@ void blackjack::on_action(uint64_t ses_id, uint16_t type, std::vector<game_sdk::
     } else if (type == action::play) {
         check(state_itr->state == game_state::require_play, "game state should be require_play");
         check(params.size() == 1, "invalid param size");
-        const auto ante = bet.require_find(ses_id, "no ante bet")->ante;
+        const auto bet_itr = bet.require_find(ses_id, "invalid ses_id");
+        const auto ante = bet_itr->ante;
         switch (params[0]) {
             case decision::hit:
                 update_state(state_itr, game_state::deal_one_card);
@@ -215,6 +216,7 @@ void blackjack::on_action(uint64_t ses_id, uint16_t type, std::vector<game_sdk::
                 if (state_itr->has_split() && !state_itr->second_round) {
                     eosio::print("player stands and swaps active cards");
                     finish_first_round(state_itr);
+                    require_action(action::play);
                     return;
                 }
                 update_state(state_itr, game_state::stand);
@@ -224,7 +226,7 @@ void blackjack::on_action(uint64_t ses_id, uint16_t type, std::vector<game_sdk::
                 check(state_itr->active_cards.size() == 2, "cannot split");
                 check(card_game::get_weight(state_itr->active_cards[0]) ==
                       card_game::get_weight(state_itr->active_cards[1]), "cannot split cards with different weights");
-                check_deposit(get_session(ses_id).deposit, ante * 2, zero_asset);
+                check_deposit(get_session(ses_id).deposit, ante * 2, zero_asset, bet_itr->side_bets_sum());
                 // split cards
                 state.modify(state_itr, get_self(), [&](auto& row) {
                     row.split_cards.push_back(row.active_cards.back());
@@ -241,7 +243,7 @@ void blackjack::on_action(uint64_t ses_id, uint16_t type, std::vector<game_sdk::
                 const auto w = card_game::get_weight(cards);
                 const auto hard = card_game::is_hard(cards);
                 check(9 <= w && w <= 11 && hard, "player may only double on hard totals of 9-11");
-                check_deposit(get_session(ses_id).deposit, ante * 2, state_itr->first_round_ante);
+                check_deposit(get_session(ses_id).deposit, ante * 2, state_itr->first_round_ante, bet_itr->side_bets_sum());
                 update_state(state_itr, game_state::double_down);
                 break;
             }
