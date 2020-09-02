@@ -465,7 +465,7 @@ BOOST_AUTO_TEST_CASE(rtp_maingame_test, *boost::unit_test::disabled()) try {
 
 BOOST_AUTO_TEST_CASE(rtp_pair_test, *boost::unit_test::disabled()) try {
     auto lambda = [](){ return get_side_bet_batch_result(STRSYM("1.0000"), STRSYM("0.0000")); };
-    BOOST_TEST(get_rtp(lambda) == 0.9, boost::test_tools::tolerance(0.05));
+    BOOST_TEST(get_rtp(lambda) == 0.96, boost::test_tools::tolerance(0.05));
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE(rtp_first_three_test, *boost::unit_test::disabled()) try {
