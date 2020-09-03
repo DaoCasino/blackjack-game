@@ -175,7 +175,10 @@ public:
         return result;
     }
 
-    void end_game(asset payout, cards_t&& dealer_cards, cards_t&& player_cards) {
+    void end_game(uint64_t ses_id, asset win, cards_t&& dealer_cards, cards_t&& player_cards) {
+        // TODO rename param::max_payout to max_win
+        const auto max_win = asset(*get_param_value(ses_id, param::max_payout), core_symbol);
+        const auto payout = get_session(ses_id).deposit + std::min(win, max_win);
         finish_game(payout, encode_cards(std::move(dealer_cards), std::move(player_cards)));
     }
 
