@@ -190,7 +190,11 @@ enum class combination : uint8_t {
     SUITED_THREE_OF_A_KIND
 };
 
-combination get_combination(const cards_t& cards) {
+combination get_combination(const cards_t& cards_) {
+    auto cards = cards_;
+    std::sort(std::begin(cards), std::end(cards), [](const card& c1, const card& c2) {
+        return c1.get_rank() > c2.get_rank();
+    });
     if (cards[0].get_rank() == cards[1].get_rank() && cards[1].get_rank() == cards[2].get_rank()) {
         if (cards[0].get_color() == cards[1].get_color() && cards[1].get_color() == cards[2].get_color()) {
             return combination::SUITED_THREE_OF_A_KIND;

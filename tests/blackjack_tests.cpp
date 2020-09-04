@@ -13,6 +13,7 @@ namespace testing {
 
 using card_game::card;
 using card_game::cards_t;
+using card_game::get_weight;
 
 class blackjack_tester : public game_tester {
 public:
@@ -127,7 +128,6 @@ public:
     }
 
     std::pair<cards_t, cards_t> decode_game_finish_message(const std::vector<param_t>& msg) {
-        BOOST_TEST_MESSAGE("decoding message, size: " << msg.size());
         if (msg.empty()) {
             return {{}, {}};
         }
@@ -396,24 +396,84 @@ std::pair<asset, asset> get_batch_result() {
     return std::make_pair(t.get_balance(t.player_name) - before_batch_balance, all_bets_sum);
 }
 
-BOOST_AUTO_TEST_CASE(rtp_test, *boost::unit_test::disabled()) try {
-    const auto to_double = [](const asset& value) -> double {
-        return double(value.get_amount()) / value.precision();
-    };
+std::pair<asset, asset> get_side_bet_batch_result(asset pair, asset first_three) {
+    blackjack_tester t;
+    const asset before_batch_balance = t.get_balance(blackjack_tester::player_name);
+    asset ante = STRSYM("1.0000");
+    const asset deposit = ante + pair + first_three;
+    asset all_side_bets_sum = blackjack_tester::zero_asset;
+    asset ante_win_sum = STRSYM("0.0000");
+    for (int i = 0; i < ROUNDS_PER_BATCH; i++) {
+        const auto before_round_balance = t.get_balance(blackjack_tester::player_name);
+        const auto ses_id = t.new_game_session(blackjack_tester::game_name, blackjack_tester::player_name, blackjack_tester::casino_id, deposit);
+        all_side_bets_sum += deposit - ante;
+        t.bet(ses_id, ante, pair, first_three);
+        t.signidice(t.game_name, ses_id);
+        const auto initial_cards = t.get_game_message_cards();
+        const bool blackjack = initial_cards.empty();
+        if (!blackjack) {
+            t.stand(ses_id);
+            t.signidice(t.game_name, ses_id);
+        }
+        cards_t player_cards, dealer_cards;
+        if (!blackjack) {
+            player_cards = cards_t{initial_cards[0], initial_cards[1]};
+            dealer_cards = t.get_dealer_finish_cards();
+            // add dealer's open card
+            dealer_cards.push_back(initial_cards[2]);
+        } else {
+            player_cards = t.get_player_finish_cards();
+            dealer_cards = t.get_dealer_finish_cards();
+        }
+        const auto player_weight = card_game::get_weight(player_cards), dealer_weight = card_game::get_weight(dealer_cards);
+        asset maingame_win = t.zero_asset;
+        if (dealer_weight > 21 || player_weight > dealer_weight) {
+            maingame_win += blackjack ? asset(ante.get_amount() * 3 / 2, symbol(CORE_SYM)) : ante;
+        } else if (player_weight < dealer_weight) {
+            maingame_win -= ante;
+        }
+        ante_win_sum += maingame_win;
+        BOOST_TEST_MESSAGE("Player cards: " << player_cards << " dealer: " << dealer_cards << " side bet win: "
+                            << t.get_balance(t.player_name) - before_round_balance - maingame_win);
+    }
+    return std::make_pair(t.get_balance(t.player_name) - before_batch_balance - ante_win_sum, all_side_bets_sum);
+}
 
+inline double to_double(const asset& value) {
+    return double(value.get_amount()) / value.precision();
+}
+
+typedef std::function<std::pair<asset, asset>()> batch_runner_t;
+
+double get_rtp(batch_runner_t&& batch_runner_fn) {
     const int rounds = 1'000'000;
     const int batches = rounds / ROUNDS_PER_BATCH;
     asset returned = STRSYM("0.0000");
     asset all_bets_sum = STRSYM("0.0000");
     for (int i = 0; i < batches; i++) {
-        const auto [r, b] = get_batch_result();
+        const auto [r, b] = batch_runner_fn();
         returned += r;
         all_bets_sum += b;
         std::cerr << "Batch #" << i + 1 << " completed, rtp: " << to_double(returned) / to_double(all_bets_sum) + 1 << "\n";
     }
-    const auto rtp = to_double(returned) / to_double(all_bets_sum) + 1;
-    BOOST_TEST(rtp == 0.993, boost::test_tools::tolerance(0.001));
+    return to_double(returned) / to_double(all_bets_sum) + 1;
+}
+
+BOOST_AUTO_TEST_CASE(rtp_maingame_test, *boost::unit_test::disabled()) try {
+    BOOST_TEST(get_rtp(get_batch_result) == 0.993, boost::test_tools::tolerance(0.001));
 } FC_LOG_AND_RETHROW()
+
+BOOST_AUTO_TEST_CASE(rtp_pair_test, *boost::unit_test::disabled()) try {
+    auto lambda = [](){ return get_side_bet_batch_result(STRSYM("1.0000"), STRSYM("0.0000")); };
+    BOOST_TEST(get_rtp(lambda) == 0.96, boost::test_tools::tolerance(0.05));
+} FC_LOG_AND_RETHROW()
+
+BOOST_AUTO_TEST_CASE(rtp_first_three_test, *boost::unit_test::disabled()) try {
+    auto lambda = [](){ return get_side_bet_batch_result(STRSYM("0.0000"), STRSYM("1.0000")); };
+    BOOST_TEST(get_rtp(lambda) == 0.963, boost::test_tools::tolerance(0.05));
+} FC_LOG_AND_RETHROW()
+
+// ----------------------------
 
 BOOST_FIXTURE_TEST_CASE(invalid_decision, blackjack_tester) try {
     const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("100.0000"));
@@ -934,6 +994,36 @@ BOOST_FIXTURE_TEST_CASE(first_three_bet_three_of_a_kind, blackjack_tester) {
     signidice(game_name, ses_id);
     // 10 * 30 - 100
     check_player_win(STRSYM("200.0000"));
+}
+
+BOOST_FIXTURE_TEST_CASE(first_three_bet_straight, blackjack_tester) {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("110.0000"));
+    bet(ses_id, STRSYM("100.0000"), STRSYM("0.0000"), STRSYM("10.0000"));
+
+    cards_t initial_cards{"Ts", "Jh", "Qs"};
+    push_cards(ses_id, initial_cards);
+    signidice(game_name, ses_id);
+
+    stand(ses_id);
+    push_cards(ses_id, {"Kd"});
+    signidice(game_name, ses_id);
+    // 10 * 10
+    check_player_win(STRSYM("100.0000"));
+}
+
+BOOST_FIXTURE_TEST_CASE(first_three_bet_straight_flush, blackjack_tester) {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("110.0000"));
+    bet(ses_id, STRSYM("100.0000"), STRSYM("0.0000"), STRSYM("10.0000"));
+
+    cards_t initial_cards{"Ts", "Js", "Qs"};
+    push_cards(ses_id, initial_cards);
+    signidice(game_name, ses_id);
+
+    stand(ses_id);
+    push_cards(ses_id, {"Kd"});
+    signidice(game_name, ses_id);
+    // 10 * 40
+    check_player_win(STRSYM("400.0000"));
 }
 
 BOOST_FIXTURE_TEST_CASE(pair_bet_double_down, blackjack_tester) try {
