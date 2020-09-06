@@ -82,6 +82,9 @@ public:
         asset pair_win;
         asset first_three_win;
 
+        // in case casino fails to send signidice
+        asset max_player_win;
+
         // methods
         bool has_hit() const {
             return active_cards.size() > 2;
@@ -91,7 +94,10 @@ public:
         }
         uint64_t primary_key() const { return ses_id; }
 
-        EOSLIB_SERIALIZE(state_row, (ses_id)(state)(active_cards)(dealer_card)(split_cards)(first_round_ante)(second_round)(pair_win)(first_three_win))
+        EOSLIB_SERIALIZE(state_row,
+                        (ses_id)(state)(active_cards)(dealer_card)(split_cards)(first_round_ante)(second_round)
+                        (pair_win)(first_three_win)
+                        (max_player_win))
     };
 
     using bet_table = eosio::multi_index<"bet"_n, bet_row>;
@@ -140,6 +146,18 @@ public:
         state.modify(state_itr, get_self(), [&](auto& row) {
             row.state = new_state;
         });
+    }
+
+    using game_sdk::game::update_max_win;
+
+    void update_max_win(uint64_t ses_id, asset delta_win) {
+        const auto state_itr = state.require_find(ses_id, "no ses_id");
+        state.modify(state_itr, get_self(), [&](auto& row) {
+            row.max_player_win += delta_win;
+        });
+        const auto max_win = asset(*get_param_value(ses_id, param::max_payout), core_symbol);
+        update_max_win(get_session(ses_id).deposit +
+                       std::min(std::max(state_itr->max_player_win, zero_asset), max_win));
     }
 
     enum class outcome {

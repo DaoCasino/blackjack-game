@@ -185,6 +185,7 @@ void blackjack::on_new_game(uint64_t ses_id) {
         row.first_round_ante = zero_asset;
         row.pair_win = zero_asset;
         row.first_three_win = zero_asset;
+        row.max_player_win = zero_asset;
     });
 }
 
@@ -200,10 +201,8 @@ void blackjack::on_action(uint64_t ses_id, uint16_t type, std::vector<game_sdk::
             row.pair = asset(params[1], core_symbol);
             row.first_three = asset(params[2], core_symbol);
         });
-        const auto max_win = asset(*get_param_value(ses_id, param::max_payout), core_symbol);
-        update_max_win(get_session(ses_id).deposit + 5 * bet_itr->ante +
-                       std::min(5 * bet_itr->ante + 25 * bet_itr->pair + 100 * bet_itr->first_three, max_win));
         update_state(state_itr, game_state::deal_cards);
+        update_max_win(ses_id, 4 * bet_itr->ante + 4 * bet_itr->ante + 25 * bet_itr->pair + 100 * bet_itr->first_three);
     } else if (type == action::play) {
         check(state_itr->state == game_state::require_play, "game state should be require_play");
         check(params.size() == 1, "invalid param size");
@@ -288,8 +287,9 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
                 end_game(ses_id, 3 * ante / 2 + side_bets_win, std::move(dealer_cards), std::move(player_cards));
                 return;
             }
-            update_state(state_itr, game_state::require_play);
             require_action(action::play);
+            update_state(state_itr, game_state::require_play);
+            update_max_win(ses_id, -4 * bet_itr->pair - 25 * bet_itr->first_three + side_bets_win);
             send_game_message(std::vector<param_t>{player_cards[0].get_value(), player_cards[1].get_value(), dealer_cards[0].get_value()});
             break;
         }
@@ -305,9 +305,13 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
                     finish_first_round(state_itr);
                 }
             }
-            send_game_message(std::vector<param_t>{player_card.get_value()});
-            update_state(state_itr, game_state::require_play);
             require_action(action::play);
+            update_state(state_itr, game_state::require_play);
+            if (!state_itr->has_split() && state_itr->active_cards.size() == 2) {
+                // since he cannot split anymore his max win is 4 * ante - 3 * ante = ante
+                update_max_win(ses_id, -3 * ante);
+            }
+            send_game_message(std::vector<param_t>{player_card.get_value()});
             break;
         }
         case game_state::double_down: {
