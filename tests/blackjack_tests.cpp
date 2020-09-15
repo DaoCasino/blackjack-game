@@ -817,6 +817,10 @@ BOOST_FIXTURE_TEST_CASE(split_aces_case_general, blackjack_tester) try {
     push_cards(ses_id, {"9s", "Ac", "Qd"});
     signidice(game_name, ses_id);
     check_player_win(-STRSYM("100.0000"));
+    const cards_t player_cards{"9s", "Ac"};
+    const cards_t dealer_cards{"Qd"};
+    BOOST_REQUIRE_EQUAL(get_player_finish_cards(), player_cards);
+    BOOST_REQUIRE_EQUAL(get_dealer_finish_cards(), dealer_cards);
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(split_aces_case_blackjack, blackjack_tester) try {
@@ -922,6 +926,36 @@ BOOST_FIXTURE_TEST_CASE(split_game_message, blackjack_tester) {
     signidice(game_name, ses_id);
 
     BOOST_REQUIRE_EQUAL(get_game_message_cards(), mock_cards);
+}
+
+BOOST_FIXTURE_TEST_CASE(split_game_message_blackjack_one, blackjack_tester) {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("100.0000"));
+    bet(ses_id, STRSYM("100.0000"));
+
+    push_cards(ses_id, {"Tc", "Qd", "Td"});
+    signidice(game_name, ses_id);
+
+    split(ses_id);
+    const cards_t player_cards{"As", "7d"};
+    push_cards(ses_id, player_cards);
+    signidice(game_name, ses_id);
+    BOOST_REQUIRE_EQUAL(get_game_message_cards(), player_cards);
+}
+
+BOOST_FIXTURE_TEST_CASE(split_game_message_blackjack_both, blackjack_tester) {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("100.0000"));
+    bet(ses_id, STRSYM("100.0000"));
+
+    push_cards(ses_id, {"Tc", "Qd", "Td"});
+    signidice(game_name, ses_id);
+
+    split(ses_id);
+    push_cards(ses_id, {"As", "Ah", "3d", "5h"});
+    signidice(game_name, ses_id);
+    const cards_t player_cards{"As", "Ah"};
+    const cards_t dealer_cards{"3d", "5h"};
+    BOOST_REQUIRE_EQUAL(get_player_finish_cards(), player_cards);
+    BOOST_REQUIRE_EQUAL(get_dealer_finish_cards(), dealer_cards);
 }
 
 // side bets
