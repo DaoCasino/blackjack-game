@@ -329,7 +329,7 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
         }
         case game_state::stand: {
             auto [win, dealer_cards] = compare_and_finish(state_itr, ante, rand, prepare_deck(state_itr, rand));
-            end_game(get_session(ses_id).deposit + win, std::move(dealer_cards));
+            end_game(get_session(ses_id).deposit + win, std::move(dealer_cards), {});
             break;
         }
         case game_state::split: {
@@ -362,7 +362,7 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
                 // In most casinos the player is only allowed to draw one card on each split ace
                 // As a general rule, a ten on a split ace (or vice versa) is not considered a natural blackjack and does not get any bonus
                 auto [win, dealer_cards] = compare_and_finish(state_itr, ante, rand, std::move(deck));
-                end_game(get_session(ses_id).deposit + win, std::move(dealer_cards));
+                end_game(get_session(ses_id).deposit + win, std::move(dealer_cards), {ncard1, ncard2});
             }
             break;
         }

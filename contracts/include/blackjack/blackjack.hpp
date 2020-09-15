@@ -175,7 +175,7 @@ public:
         return result;
     }
 
-    void end_game(asset payout, cards_t&& dealer_cards, cards_t&& player_cards = {}) {
+    void end_game(asset payout, cards_t&& dealer_cards, cards_t&& player_cards) {
         finish_game(payout, encode_cards(std::move(dealer_cards), std::move(player_cards)));
     }
 
