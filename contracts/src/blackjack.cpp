@@ -307,6 +307,7 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
             }
             require_action(action::play);
             update_state(state_itr, game_state::require_play);
+            // if player has 2 cards and hasn't split it means it's his first action in the game
             if (!state_itr->has_split() && state_itr->active_cards.size() == 2) {
                 // since he cannot split anymore his max win is 4 * ante - 3 * ante = ante
                 update_max_win(ses_id, -3 * ante);
