@@ -23,9 +23,9 @@ public:
     static const asset zero_asset;
     static constexpr uint64_t default_ante_min_bet = 1'0000; // 1 BET
     static constexpr uint64_t default_ante_max_bet = 10000'0000; // 10k
-    static constexpr uint64_t default_pair_max_bet = 1000'0000; // 1k
+    static constexpr uint64_t default_pair_max_bet = 3000'0000; // 3k
     static constexpr uint64_t default_first_three_max_bet = 1000'0000; // 1k
-    static constexpr uint64_t default_max_payout = 200000'0000; // 200k BET
+    static constexpr uint64_t default_max_payout = 100000'0000; // 100k BET
 public:
     blackjack_tester() {
         create_account(game_name);
@@ -154,8 +154,8 @@ public:
     }
 
     void check_player_win(asset win) {
-        BOOST_REQUIRE_EQUAL(get_balance(player_name), starting_balance + win);
-        BOOST_REQUIRE_EQUAL(get_balance(casino_name), starting_balance - win);
+        BOOST_REQUIRE_EQUAL(get_balance(player_name) - starting_balance, win);
+        BOOST_REQUIRE_EQUAL(get_balance(casino_name) - starting_balance, -win);
     }
 };
 
@@ -1073,6 +1073,55 @@ BOOST_FIXTURE_TEST_CASE(pair_bet_double_down, blackjack_tester) try {
 
     check_player_win(STRSYM("80.0000"));
 } FC_LOG_AND_RETHROW()
+
+// max payout tests
+
+BOOST_FIXTURE_TEST_CASE(max_payout_basic, blackjack_tester) {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("2001.0000"));
+    bet(ses_id, STRSYM("1.0000"), STRSYM("1000.0000"), STRSYM("1000.0000"));
+
+    push_cards(ses_id, {"3c", "3c", "3c"});
+    signidice(game_name, ses_id);
+
+    stand(ses_id);
+    push_cards(ses_id, {"Ad", "7c"});
+    signidice(game_name, ses_id);
+    // min(100k + 25k - 1, 100k)
+    check_player_win(STRSYM("100000.0000"));
+}
+
+BOOST_FIXTURE_TEST_CASE(max_payout_double, blackjack_tester) {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("4001.0000"));
+    bet(ses_id, STRSYM("1.0000"), STRSYM("3000.0000"), STRSYM("1000.0000"));
+
+    push_cards(ses_id, {"5s", "5s", "5h"});
+    signidice(game_name, ses_id);
+
+    double_down(ses_id);
+    push_cards(ses_id, {"Qd", "Qc", "Th"});
+    signidice(game_name, ses_id);
+    // min(75k + 30k, 100k)
+    check_player_win(STRSYM("100000.0000"));
+}
+
+BOOST_FIXTURE_TEST_CASE(max_payout_split, blackjack_tester) {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("4001.0000"));
+    bet(ses_id, STRSYM("1.0000"), STRSYM("3000.0000"), STRSYM("1000.0000"));
+
+    push_cards(ses_id, {"7s", "7s", "7h"});
+    signidice(game_name, ses_id);
+
+    split(ses_id);
+    push_cards(ses_id, {"9h", "As"});
+    signidice(game_name, ses_id);
+
+    stand(ses_id);
+    stand(ses_id);
+    push_cards(ses_id, {"5d", "Kh", "Qc"});
+    signidice(game_name, ses_id);
+    // min(75k + 30k + 1 + 1, 100k)
+    check_player_win(STRSYM("100000.0000"));
+}
 
 #endif
 
