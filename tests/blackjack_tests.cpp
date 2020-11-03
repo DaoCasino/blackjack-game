@@ -1143,6 +1143,25 @@ BOOST_FIXTURE_TEST_CASE(cant_deposit_after_stand, blackjack_tester) try {
     check_player_win(-STRSYM("100.0000"));
 } FC_LOG_AND_RETHROW()
 
+BOOST_FIXTURE_TEST_CASE(cant_deposit_after_hit, blackjack_tester) try {
+    const auto ses_id = new_game_session(game_name, player_name, casino_id, STRSYM("100.0000"));
+    bet(ses_id, STRSYM("100.0000"));
+
+    push_cards(ses_id, {"Kd", "Ts", "Td"});
+    signidice(game_name, ses_id);
+
+    hit(ses_id);
+
+    BOOST_REQUIRE_EQUAL(transfer(player_name, game_name, STRSYM("100.0000"), std::to_string(ses_id)),
+        wasm_assert_msg("state should be 'req_allow_deposit'")
+    );
+
+    push_cards(ses_id, {"3d", "Jh"});
+    signidice(game_name, ses_id);
+
+    check_player_win(-STRSYM("100.0000"));
+} FC_LOG_AND_RETHROW()
+
 #endif
 
 BOOST_AUTO_TEST_SUITE_END()
