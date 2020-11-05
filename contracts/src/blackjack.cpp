@@ -217,7 +217,7 @@ void blackjack::on_action(uint64_t ses_id, uint16_t type, std::vector<game_sdk::
                 if (state_itr->has_split() && !state_itr->second_round) {
                     eosio::print("player stands and swaps active cards\n");
                     finish_first_round(state_itr);
-                    require_action(action::play);
+                    require_action(action::play, true);
                     return;
                 }
                 update_state(state_itr, game_state::stand);
@@ -305,7 +305,7 @@ void blackjack::on_random(uint64_t ses_id, checksum256 rand) {
                     finish_first_round(state_itr);
                 }
             }
-            require_action(action::play);
+            require_action(action::play, true);
             update_state(state_itr, game_state::require_play);
             // if player has 2 cards and hasn't split it means it's his first action in the game
             if (!state_itr->has_split() && state_itr->active_cards.size() == 2) {
